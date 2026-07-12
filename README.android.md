@@ -6,7 +6,7 @@
 
 - Windows 电脑和 USB 数据线。
 - 手机已开启 USB 调试并允许当前电脑连接，无需 Root。
-- 已安装兼容的 Mod APK，包名为 `jp.co.fanzagames.twinklestarknightsx_a_mod`。
+- 已安装兼容的 Mod APK，包名为 `jp.co.fanzagames.twinklestarknightsx_a_mod`。安卓版安装包请前往 [anosu/DMM-Mod](https://github.com/anosu/DMM-Mod) 获取。
 - 首次安装需要联网。实际下载量取决于手机已有缓存；2026 年 7 月测试约需 0.66 GiB。
 
 ## 安装
@@ -40,7 +40,7 @@
 
 ### 提示 APK 不兼容
 
-当前版本不会自动修改原版 APK，需要先安装兼容 Mod APK。
+当前版本不会自动修改原版 APK。请先前往 [anosu/DMM-Mod](https://github.com/anosu/DMM-Mod) 获取并安装安卓版兼容安装包。
 
 ### 下载中断
 

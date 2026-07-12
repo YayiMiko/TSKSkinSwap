@@ -21,7 +21,7 @@
 
 ### Android 版 Release 0.1
 
-适用于 Android 版游戏，无需 Root。首次安装需要 Windows 电脑、USB 数据线、USB 调试和兼容 Mod APK。
+适用于 Android 版游戏，无需 Root。首次安装需要 Windows 电脑、USB 数据线、USB 调试和兼容 Mod APK。安卓版安装包请前往 [anosu/DMM-Mod](https://github.com/anosu/DMM-Mod) 获取。
 
 [下载 Android 版 Release 0.1](https://github.com/YayiMiko/TwinkleStarKnightsX-SkinSwap/releases/tag/android-v0.1.0)
 
