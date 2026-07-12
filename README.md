@@ -1,6 +1,6 @@
 # TskSkinSwap
 
-这是一个适用于 PC 版《ティンクルスターナイツX》的动画替换 MOD。
+这是一个适用于 PC 版《闪耀星骑士》的动画替换 MOD。
 
 安装后，角色在战斗中使用“通常攻击 2”时，会播放该角色的高画质成人版变身动画。支持的角色会自动匹配，无需在游戏中逐个打开变身界面下载资源。
 
@@ -15,7 +15,7 @@
 
 ## 安装方法
 
-1. 打开 [Releases](https://github.com/YayiMiko/TskSkinSwap/releases)，下载最新的 `TskSkinSwap-版本号.zip`。
+1. 打开 [Releases](https://github.com/YayiMiko/TwinkleStarKnightsX-SkinSwap/releases)，下载最新的 `TskSkinSwap-版本号.zip`。
 2. 解压后，将整个 `TskSkinSwap` 文件夹放入游戏目录下的 `mods` 文件夹：
 
    ```text

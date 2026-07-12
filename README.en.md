@@ -6,7 +6,7 @@ TskSkinSwap is a Live2D normal-attack animation replacement mod for Twinkle Star
 
 ## One-Click Installation
 
-1. Download `TskSkinSwap-v0.5.0.zip` from [Releases](https://github.com/YayiMiko/TskSkinSwap/releases).
+1. Download `TskSkinSwap-v0.5.0.zip` from [Releases](https://github.com/YayiMiko/TwinkleStarKnightsX-SkinSwap/releases).
 2. Extract the `TskSkinSwap` folder to `<game>/mods/TskSkinSwap/`.
 3. Start the game once after an update so Addressables refreshes its catalog, then close it.
 4. Double-click `Apply-TskSkinSwap.bat`.
