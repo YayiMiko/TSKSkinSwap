@@ -7,7 +7,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>TskSkinSwap</AssemblyName>
     <RootNamespace>TskSkinSwap</RootNamespace>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
   </PropertyGroup>
 
   <ItemGroup>

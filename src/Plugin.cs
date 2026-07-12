@@ -14,7 +14,7 @@ public sealed class Plugin : BasePlugin
 {
     public const string PluginGuid = "com.codex.tskskinswap";
     public const string PluginName = "TSK Skin Swap";
-    public const string PluginVersion = "1.1.1";
+    public const string PluginVersion = "1.1.2";
 
     internal static ManualLogSource PluginLog { get; private set; } = null!;
 
@@ -237,9 +237,10 @@ internal static class SkinSwapRuntime
                 }
 
                 var sourceAsset = manager.cutinData[characterId];
-                var prepared = PrepareTransform(mapping);
+                var sourceAssetInstanceId = sourceAsset.GetInstanceID();
+                var prepared = PrepareTransform(mapping, sourceAssetInstanceId);
                 var request = new OverrideRequest(sourceAsset, prepared, DateTimeOffset.UtcNow.AddSeconds(10));
-                var instanceId = sourceAsset.GetInstanceID();
+                var instanceId = sourceAssetInstanceId;
                 if (ActiveOverrides.TryGetValue(instanceId, out var previous))
                 {
                     previous.RestoreTemporaryFields(sourceAsset);
@@ -358,11 +359,21 @@ internal static class SkinSwapRuntime
         }
     }
 
-    private static PreparedTransform PrepareTransform(CharacterMapping mapping)
+    private static PreparedTransform PrepareTransform(CharacterMapping mapping, int sourceAssetInstanceId = 0)
     {
         if (PreparedTransforms.TryGetValue(mapping.CharacterId, out var existing))
         {
-            return existing;
+            if (sourceAssetInstanceId == 0 || existing.SourceAssetInstanceId == sourceAssetInstanceId)
+            {
+                return existing;
+            }
+
+            PreparedTransforms.Remove(mapping.CharacterId);
+            RuntimeObjects.Remove(existing.Asset);
+            RuntimeFileLog.Write(
+                $"TRANSFORM_INVALIDATED character={mapping.CharacterId} "
+                + $"oldSourceInstance={existing.SourceAssetInstanceId} newSourceInstance={sourceAssetInstanceId}"
+            );
         }
 
         var (bundle, owned) = OpenTransformBundle(mapping);
@@ -388,13 +399,23 @@ internal static class SkinSwapRuntime
                 throw new InvalidOperationException($"Transform AnimationStateData could not be created: {mapping.TransformSkeletonAsset}");
             }
 
-            var prepared = new PreparedTransform(mapping.CharacterId, transformAsset, transformData, stateData, !owned);
+            var prepared = new PreparedTransform(
+                mapping.CharacterId,
+                sourceAssetInstanceId,
+                transformAsset,
+                transformData,
+                stateData,
+                !owned
+            );
             if (owned)
             {
                 PreparedTransforms[mapping.CharacterId] = prepared;
                 RuntimeObjects.Add(transformAsset);
             }
-            RuntimeFileLog.Write($"TRANSFORM_PREPARED character={mapping.CharacterId} source={(owned ? "mod" : "game")}");
+            RuntimeFileLog.Write(
+                $"TRANSFORM_PREPARED character={mapping.CharacterId} source={(owned ? "mod" : "game")} "
+                + $"sourceInstance={sourceAssetInstanceId} transformInstance={transformAsset.GetInstanceID()}"
+            );
             return prepared;
         }
         finally
@@ -474,6 +495,7 @@ internal static class SkinSwapRuntime
 
     private sealed record PreparedTransform(
         string CharacterId,
+        int SourceAssetInstanceId,
         SkeletonDataAsset Asset,
         Spine.SkeletonData Data,
         Spine.AnimationStateData StateData,
