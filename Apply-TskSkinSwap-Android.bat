@@ -6,6 +6,8 @@ echo.
 echo Connect the phone and allow USB debugging when prompted.
 echo.
 
+if not exist "%~dp0Apply-TskSkinSwap-Android.ps1" goto missing_files
+
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Apply-TskSkinSwap-Android.ps1"
 set "EXIT_CODE=%ERRORLEVEL%"
 
@@ -17,6 +19,12 @@ goto finished
 :failed
 echo Installation failed with exit code %EXIT_CODE%.
 echo Check the message above and run this file again.
+goto finished
+
+:missing_files
+set "EXIT_CODE=2"
+echo Required files are missing.
+echo Extract the entire release ZIP to a normal folder, then run this BAT again.
 
 :finished
 echo.

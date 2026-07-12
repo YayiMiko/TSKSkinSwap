@@ -14,7 +14,7 @@ public sealed class Plugin : BasePlugin
 {
     public const string PluginGuid = "com.codex.tskskinswap";
     public const string PluginName = "TSK Skin Swap";
-    public const string PluginVersion = "1.1.0";
+    public const string PluginVersion = "1.1.1";
 
     internal static ManualLogSource PluginLog { get; private set; } = null!;
 
@@ -99,6 +99,7 @@ internal static class SkeletonGraphicInitializePatch
 
 internal static class SkinSwapRuntime
 {
+    private static readonly HashSet<string> ExcludedCharacterIds = new(StringComparer.Ordinal) { "1141001" };
     private static readonly Dictionary<string, CharacterMapping> Mappings = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, PreparedTransform> PreparedTransforms = new(StringComparer.Ordinal);
     private static readonly Dictionary<int, OverrideRequest> ActiveOverrides = new();
@@ -129,6 +130,12 @@ internal static class SkinSwapRuntime
 
             foreach (var mapping in document.Characters.Where(item => item.Enabled))
             {
+                if (ExcludedCharacterIds.Contains(mapping.CharacterId))
+                {
+                    RuntimeFileLog.Write($"MAPPING_EXCLUDED character={mapping.CharacterId} reason=knownRenderingIssue");
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(mapping.CharacterId)
                     || string.IsNullOrWhiteSpace(mapping.TransformBundle)
                     || string.IsNullOrWhiteSpace(mapping.TransformSkeletonAsset))

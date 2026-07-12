@@ -4,26 +4,26 @@ This mod replaces the character cutin shown during both Normal Attack 1 and Norm
 
 A future optional edition may limit the replacement to Normal Attack 2 only.
 
+Lulu (`[炎宿せし宝石] ルルゥ`, internal ID `1141001`) is currently excluded on both PC and Android. Her original normal-attack presentation remains active.
+
 [简体中文](README.md)
 
-## PC Release 1.1
+## PC Release 1.1.1
 
-1. Download `TskSkinSwap-PC-v1.1.0.zip` from [PC Release 1.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/pc-v1.1.0).
+1. Download `TskSkinSwap-PC-v1.1.1.zip` from [PC Release 1.1.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/pc-v1.1.1).
 2. Extract `TskSkinSwap` to `<game>/mods/TskSkinSwap/`.
 3. Close the game and double-click `Apply-TskSkinSwap.bat`.
 4. Start the game after `Completed successfully` appears.
 
 The first installation downloads about 2 GB. Run the BAT again after a game update.
 
-To upgrade from PC 1.0, you do not need to uninstall it. Close the game, replace the old `TskSkinSwap` folder with the fully extracted 1.1 folder, and run the new `Apply-TskSkinSwap.bat`. Existing valid downloads will be reused.
+To upgrade from an older PC release, you do not need to uninstall it. Close the game, replace the old `TskSkinSwap` folder with the fully extracted 1.1.1 folder, and run the new `Apply-TskSkinSwap.bat`. Existing valid downloads will be reused.
 
-## Android Release 0.1.1
+## Android Release 0.1.2
 
 Android does not require root, but the first installation requires a Windows PC, USB debugging, a USB cable, and a compatible Android package (APK).
 
-Known compatibility issue: some users report that the Android edition does not work on certain Xiaomi phones. The cause is still under investigation, and Xiaomi compatibility is not currently guaranteed.
-
-1. Download and fully extract `TskSkinSwap-Android-v0.1.1.zip` from [Android Release 0.1.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-v0.1.1).
+1. Download and fully extract `TskSkinSwap-Android-v0.1.2.zip` from [Android Release 0.1.2](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-v0.1.2).
 2. Connect and unlock the phone, then approve USB debugging on the phone.
 3. Double-click `Apply-TskSkinSwap-Android.bat` on the PC without disconnecting the phone.
 4. The application is complete only after the PC shows `Installation completed` and the game starts automatically on the phone.

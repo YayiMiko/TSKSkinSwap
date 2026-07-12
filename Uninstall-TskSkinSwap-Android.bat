@@ -5,6 +5,8 @@ echo TSK Skin Swap - Android uninstaller
 echo Downloaded transform bundles will be kept for reuse.
 echo.
 
+if not exist "%~dp0Uninstall-TskSkinSwap-Android.ps1" goto missing_files
+
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Uninstall-TskSkinSwap-Android.ps1"
 set "EXIT_CODE=%ERRORLEVEL%"
 
@@ -15,6 +17,12 @@ goto finished
 
 :failed
 echo Uninstall failed with exit code %EXIT_CODE%.
+goto finished
+
+:missing_files
+set "EXIT_CODE=2"
+echo Required files are missing.
+echo Extract the entire release ZIP to a normal folder, then run this BAT again.
 
 :finished
 echo.

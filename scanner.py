@@ -60,6 +60,8 @@ CORE_REGIONS = {
     "b_foot_02_R",
 }
 
+EXCLUDED_CHARACTER_IDS = {"1141001"}
+
 
 @dataclass(frozen=True)
 class Atlas:
@@ -298,6 +300,7 @@ def main() -> int:
     atlas_outputs: dict[str, str] = {}
 
     for character_id in common_ids:
+        excluded = character_id in EXCLUDED_CHARACTER_IDS
         cutin_asset = cutins[character_id]
         transform_asset = transforms[character_id]
         atlas_name = ""
@@ -321,12 +324,14 @@ def main() -> int:
             }
 
         report["mode"] = "fullSkeleton"
-        report["compatible"] = True
+        report["compatible"] = not excluded
         report["score"] = 1.0
+        if excluded:
+            report["excludedReason"] = "knownRenderingIssue"
         characters.append(
             {
                 "characterId": character_id,
-                "enabled": True,
+                "enabled": not excluded,
                 "cutinBundle": str(cutin_asset.bundle_path),
                 "transformBundle": str(transform_asset.bundle_path),
                 "cutinEdition": cutin_asset.edition,

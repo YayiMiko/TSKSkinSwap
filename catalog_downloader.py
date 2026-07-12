@@ -23,6 +23,8 @@ TRANSFORM_TARGET_RE = re.compile(
     r"(?P<edition>adult|general)/tf_(?P<id>\d+)/"
     r"tf_(?P=id)_m0_SkeletonData\.asset$"
 )
+
+EXCLUDED_CHARACTER_IDS = {"1141001"}
 CUTIN_TARGET_RE = re.compile(
     r"^Assets/AssetBundles/Cutin/Characters/(?P<quality>HighQuality|LowQuality)/"
     r"(?P<edition>adult|general)/(?P<id>\d+)/bc_(?P=id)_SkeletonData\.asset$"
@@ -217,6 +219,8 @@ def discover_targets(
     targets: list[BundleTarget] = []
     missing_cutins: list[str] = []
     for character_id, transform in sorted(transforms.items()):
+        if character_id in EXCLUDED_CHARACTER_IDS:
+            continue
         targets.append(transform)
         if not require_cutins:
             continue

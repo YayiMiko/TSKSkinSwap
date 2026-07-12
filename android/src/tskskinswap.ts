@@ -30,6 +30,7 @@ const pendingAssets = new Map<string, PendingAsset>();
 const completionScheduled = new Set<string>();
 const cutinAssetClones = new Map<string, Il2Cpp.Object>();
 const retainedObjects: Il2Cpp.Object[] = [];
+const excludedCharacterIds = new Set(["1141001"]);
 
 let root = fallbackRoot;
 
@@ -52,7 +53,7 @@ function readMappings(): void {
   }
 
   for (const mapping of document.characters) {
-    if (mapping.enabled) {
+    if (mapping.enabled && !excludedCharacterIds.has(mapping.characterId)) {
       mappings.set(mapping.characterId, mapping);
     }
   }

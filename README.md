@@ -4,17 +4,19 @@
 
 目前两种通常攻击都会生效；后续可能开发仅在“通常攻击 2”时生效的可选版本。
 
+当前不支持露露（`[炎宿せし宝石] ルルゥ`，内部 ID `1141001`）。PC 版和 Android 版均已跳过该角色，通常攻击时继续使用游戏原始演出。
+
 游戏动画资源不会包含在下载包中。安装工具会根据你的游戏版本获取所需资源，并尽量复用已经下载的内容。
 
 ## 选择版本
 
-### PC 版 Release 1.1
+### PC 版 Release 1.1.1
 
 适用于 Windows PC 版游戏，提供一键安装、更新和卸载。
 
-[下载 PC 版 Release 1.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/pc-v1.1.0)
+[下载 PC 版 Release 1.1.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/pc-v1.1.1)
 
-1. 下载 `TskSkinSwap-PC-v1.1.0.zip` 并完整解压。
+1. 下载 `TskSkinSwap-PC-v1.1.1.zip` 并完整解压。
 2. 如果游戏目录下没有 `mods` 文件夹，请自行新建一个。
 3. 将解压出的 `TskSkinSwap` 文件夹放到 `<游戏目录>\mods\TskSkinSwap\`。
 4. 完全关闭游戏，进入该 `TskSkinSwap` 文件夹，双击里面的 `Apply-TskSkinSwap.bat`。
@@ -22,15 +24,15 @@
 
 首次安装约需下载 2 GB。详细说明见 [PC 版使用说明](README.pc.md)。
 
-已经安装 PC 版 1.0 的用户无需卸载：下载并完整解压 1.1，用新的 `TskSkinSwap` 文件夹覆盖原文件夹，然后在游戏关闭时再次运行 `Apply-TskSkinSwap.bat` 即可。已经下载且仍然有效的资源会继续复用。
+已经安装 PC 旧版的用户无需卸载：下载并完整解压 1.1.1，用新的 `TskSkinSwap` 文件夹覆盖原文件夹，然后在游戏关闭时再次运行 `Apply-TskSkinSwap.bat` 即可。已经下载且仍然有效的资源会继续复用。
 
-### Android 版 Release 0.1.1
+### Android 版 Release 0.1.2
 
 适用于 Android 版游戏，无需 Root。首次安装需要 Windows 电脑、USB 数据线、USB 调试和安卓版兼容安装包（APK）。请前往 [anosu/DMM-Mod](https://github.com/anosu/DMM-Mod) 获取该安装包。
 
-[下载 Android 版 Release 0.1.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-v0.1.1)
+[下载 Android 版 Release 0.1.2](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-v0.1.2)
 
-1. 下载 `TskSkinSwap-Android-v0.1.1.zip` 并完整解压。
+1. 下载 `TskSkinSwap-Android-v0.1.2.zip` 并完整解压。
 2. 在手机的“关于手机 → 版本信息”中连续点击“软件版本号”约 7 次，开启开发者模式。
 3. 返回“系统管理与升级”（部分手机叫“更多设置”），进入“开发者选项”并开启“USB 调试”。
 4. 手机连接电脑并保持解锁；在手机弹窗中勾选始终允许这台电脑，再点击“允许”。
@@ -39,9 +41,7 @@
 
 实际下载量取决于手机已有缓存。详细说明见 [Android 版使用说明](README.android.md)。
 
-已经使用 Android 版 0.1 的用户无需卸载，完整解压 0.1.1 后重新运行新的 BAT 即可，已有有效资源会继续复用。
-
-已知兼容性问题：目前有用户反馈部分小米手机无法使用，原因仍在调查，暂不保证兼容。
+已经使用 Android 旧版的用户无需卸载，完整解压 0.1.2 后重新运行新的 BAT 即可，已有有效资源会继续复用。
 
 ## 游戏更新后
 
