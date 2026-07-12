@@ -1,43 +1,36 @@
 # TskSkinSwap
 
-This tool redirects a normal-attack `bc_<id>` SkeletonData request to the complete high-quality `tf_<id>_m0` transformation SkeletonData, including its mesh attachments, skin, atlas, and materials.
+适用于《ティンクルスターナイツX》的 Live2D 通常攻击动画替换 MOD。工具会在通常攻击 2 请求 `bc_<角色ID>` 骨骼时，改用对应变身演出的完整高画质 `tf_<角色ID>_m0` SkeletonData，包括骨骼、网格附件、skin、atlas 和材质。
 
-[简体中文说明](README.zh-CN.md)
+[English](README.en.md)
 
-## Update Workflow
+## 一键安装
 
-1. Copy this directory to `<game>/mods/TskSkinSwap/`.
-2. Start the game once after an update so Addressables refreshes its catalog and cache, then close it.
-3. Double-click `Apply-TskSkinSwap.bat`.
+1. 从 [Releases](https://github.com/YayiMiko/TskSkinSwap/releases) 下载 `TskSkinSwap-v0.5.0.zip`。
+2. 将压缩包内的 `TskSkinSwap` 文件夹放到：
 
-The first run downloads isolated copies of embedded Python, UnityPy, the .NET 6 SDK, and BepInEx from their official sources. It then reads the installed client's current Addressables catalog and downloads only the high-quality adult transformation and matching Cutin bundles required by the mod. The July 2026 catalog requires about 2.0 GiB of game bundles, so allow at least 2.1 GB of free disk space. No system-wide Python or .NET SDK installation is required.
-
-For a non-mutating compatibility scan from PowerShell:
-
-   ```powershell
-   .\mods\TskSkinSwap\Update-TskSkinSwap.ps1 -DryRun
+   ```text
+   <游戏目录>\mods\TskSkinSwap\
    ```
 
-To generate mappings and rebuild/install the runtime plugin directly from PowerShell:
+3. 游戏更新后先正常启动一次，以刷新 Addressables 目录，然后关闭游戏。
+4. 双击 `Apply-TskSkinSwap.bat`。
+5. 显示 `Completed successfully` 后即可启动游戏。
 
-   ```powershell
-   .\mods\TskSkinSwap\Update-TskSkinSwap.ps1
-   ```
+首次运行会从官方来源安装隔离的 Python、UnityPy、.NET SDK 和 BepInEx。随后脚本读取当前客户端的 Addressables 目录，并从游戏官方 CDN 下载 MOD 所需的高画质成人版变身包和对应 Cutin 包，无需逐个打开角色界面。
 
-Adult Cutin is preferred when available; otherwise the downloader automatically selects the matching high-quality general Cutin. Downloaded game bundles are stored under `downloaded/bundles/`, are never written into the game cache, and are excluded by `.gitignore`.
+成人版 Cutin 不存在时会自动回退到同 ID 的高画质 `general` Cutin。2026 年 7 月的资源目录约需下载 2.0 GiB，请至少预留 2.1 GB 磁盘空间。
 
-The update command restores the bundled BepInEx loader if game maintenance removed it, regenerates IL2CPP interop assemblies when needed, downloads missing bundles, scans both downloaded files and the current cache, builds the plugin, and installs the result. Existing valid downloads are reused after game updates.
+## 更新与工作原理
 
-## Safety and Rollback
+游戏版本更新后，再次双击 `Apply-TskSkinSwap.bat`。仍然有效的下载文件会被复用，目录中已变化的 bundle 会自动重新下载。
 
-The scanner never edits Addressables bundles or Unity cache files. Downloads use only URLs supplied by the installed client's catalog, and their declared size and required SkeletonData asset are validated before use. The runtime plugin reads bundles directly and replaces the skeleton data in memory. To disable it, remove `BepInEx/plugins/TskSkinSwap/TskSkinSwap.dll` or set a character's `enabled` value to `false`.
+下载文件保存在 `downloaded/bundles/`。脚本只使用当前客户端目录提供的 URL，并校验文件大小、UnityFS 格式和目标 SkeletonData。游戏原始 Addressables bundle 与 Unity 缓存不会被修改。
 
-For a clean rollback:
+## 卸载
 
-```powershell
-.\mods\TskSkinSwap\Uninstall-TskSkinSwap.ps1
-```
+双击 `Uninstall-TskSkinSwap.bat`。卸载不会删除 BepInEx 或自动下载的资源。若需释放磁盘空间，可在卸载后删除 `downloaded/`。
 
-Alternatively, double-click `Uninstall-TskSkinSwap.bat`.
+## 发布说明
 
-Generated files live under `mods/TskSkinSwap/generated/` and `BepInEx/config/TskSkinSwap/`. Do not redistribute or commit `downloaded/`; it contains copyrighted game assets fetched for the local installation.
+请勿提交或重新分发 `.tools/`、`downloaded/`、`generated/`、`src/bin/` 或 `src/obj/`。其中 `downloaded/` 包含从游戏官方 CDN 获取的版权资源。第三方组件及许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。
