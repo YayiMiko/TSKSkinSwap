@@ -24,20 +24,22 @@
 
 已经安装 PC 版 1.0 的用户无需卸载：下载并完整解压 1.1，用新的 `TskSkinSwap` 文件夹覆盖原文件夹，然后在游戏关闭时再次运行 `Apply-TskSkinSwap.bat` 即可。已经下载且仍然有效的资源会继续复用。
 
-### Android 版 Release 0.1
+### Android 版 Release 0.1.1
 
 适用于 Android 版游戏，无需 Root。首次安装需要 Windows 电脑、USB 数据线、USB 调试和安卓版兼容安装包（APK）。请前往 [anosu/DMM-Mod](https://github.com/anosu/DMM-Mod) 获取该安装包。
 
-[下载 Android 版 Release 0.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-v0.1.0)
+[下载 Android 版 Release 0.1.1](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-v0.1.1)
 
-1. 下载 `TskSkinSwap-Android-v0.1.0.zip` 并完整解压。
+1. 下载 `TskSkinSwap-Android-v0.1.1.zip` 并完整解压。
 2. 在手机的“关于手机 → 版本信息”中连续点击“软件版本号”约 7 次，开启开发者模式。
 3. 返回“系统管理与升级”（部分手机叫“更多设置”），进入“开发者选项”并开启“USB 调试”。
-4. 手机连接电脑、保持解锁，并在手机弹窗中允许这台电脑进行 USB 调试。
-5. 在电脑上打开刚才解压的文件夹，双击里面的 `Apply-TskSkinSwap-Android.bat`。
-6. 等待工具安装完成并自动重启游戏。
+4. 手机连接电脑并保持解锁；在手机弹窗中勾选始终允许这台电脑，再点击“允许”。
+5. 在电脑上打开解压后的文件夹，双击 `Apply-TskSkinSwap-Android.bat`，不要关闭窗口或断开手机。
+6. 等待电脑显示 `Installation completed`，并确认手机上的《闪耀星骑士》被自动启动。两者都发生才表示应用完成。
 
 实际下载量取决于手机已有缓存。详细说明见 [Android 版使用说明](README.android.md)。
+
+已经使用 Android 版 0.1 的用户无需卸载，完整解压 0.1.1 后重新运行新的 BAT 即可，已有有效资源会继续复用。
 
 已知兼容性问题：目前有用户反馈部分小米手机无法使用，原因仍在调查，暂不保证兼容。
 
