@@ -1,6 +1,6 @@
 # 闪耀星骑士通常攻击演出成人变身动画替换 MOD
 
-本 MOD 会将《闪耀星骑士》中角色发动“通常攻击 1”和“通常攻击 2”时出现的角色演出替换为该角色的高画质成人变身动画（R18）。当前提供 PC 正式版和 Android 0.2.6 Dev 测试版。它不会改变实际攻击动作、伤害或战斗速度。
+本 MOD 会将《闪耀星骑士》中角色发动“通常攻击 1”和“通常攻击 2”时出现的角色演出替换为该角色的高画质成人变身动画（R18）。当前提供 PC 和 Android 正式版。它不会改变实际攻击动作、伤害或战斗速度。
 
 目前两种通常攻击都会生效；后续可能开发仅在“通常攻击 2”时生效的可选版本。
 
@@ -26,9 +26,9 @@
 
 已经安装 PC 旧版的用户无需卸载：下载并完整解压 1.2.2，用新的 `TskSkinSwap` 文件夹覆盖原文件夹，然后在游戏关闭时再次运行 `Apply-TskSkinSwap.bat` 即可。已经下载且仍然有效的资源会继续复用。
 
-### Android 版 0.2.6（Dev 测试版）
+### Android 版 Release 0.2.6
 
-[下载 Android 0.2.6 Dev 测试版](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-dev-20260714.6)
+[下载 Android 版 Release 0.2.6](https://github.com/YayiMiko/TSKSkinSwap/releases/tag/android-v0.2.6)
 
 新安装器只接受经过完整文件校验的标准兼容安卓安装包，能够保留汉化和手机上的大型游戏数据，并自动补齐缺失变身资源。已在 vivo X100 Pro（Android 16）完成通常攻击 1 和 2、连续击杀、图鉴预览后进入战斗、场景切换及完整重启测试。使用前请阅读 [Android 版说明](README.android.md)。
 
@@ -48,7 +48,9 @@
 
 ### 如何恢复原版
 
-完全关闭游戏后运行下载包中的 `Uninstall-TskSkinSwap.bat`。选择 `Complete uninstall` 会删除 MOD、下载资源和本地工具，并在没有其他插件使用时一并移除由本 MOD 安装的 BepInEx；选择 `Disable only` 则保留资源，方便之后快速恢复 MOD。工具不会替换游戏原始动画文件。
+PC 版：完全关闭游戏后运行 `Uninstall-TskSkinSwap.bat`。选择 `Complete uninstall` 会删除 MOD、下载资源和本地工具；选择 `Disable only` 则保留资源，方便之后快速恢复。
+
+Android 版：连接并授权手机后运行 `Uninstall-TskSkinSwap-Android.bat`。工具会覆盖恢复未内置本 MOD 的标准兼容安卓安装包，默认保留变身资源，并在完成后自动启动手机上的游戏。
 
 ## 资源说明
 
