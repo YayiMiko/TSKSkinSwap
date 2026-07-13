@@ -17,7 +17,9 @@ $outputRoot = Join-Path $toolRoot 'generated'
 $downloadRoot = Join-Path $toolRoot 'downloaded\bundles'
 $cacheRoot = Join-Path $env:USERPROFILE 'AppData\LocalLow\Unity\FANZAGAMES_twinkle_starknightsX'
 $catalogPath = Join-Path $env:USERPROFILE 'AppData\LocalLow\FANZAGAMES\twinkle_starknightsX\com.unity.addressables\catalog_0.0.0.json'
+$pluginDirectory = Join-Path $GamePath 'BepInEx\plugins\TskSkinSwap'
 $pluginConfigRoot = Join-Path $GamePath 'BepInEx\config\TskSkinSwap'
+$installStatePath = Join-Path $toolRoot '.install-state.json'
 $bepInExCore = Join-Path $GamePath 'BepInEx\core\BepInEx.Unity.IL2CPP.dll'
 $bepInExZip = Join-Path $toolsRoot 'BepInEx-Unity.IL2CPP-win-x64-6.0.0-pre.2.zip'
 $bepInExUrl = 'https://github.com/BepInEx/BepInEx/releases/download/v6.0.0-pre.2/BepInEx-Unity.IL2CPP-win-x64-6.0.0-pre.2.zip'
@@ -45,6 +47,55 @@ function Stop-StartedGameProcesses {
     Get-Process twinkle_starknightsX -ErrorAction SilentlyContinue |
         Where-Object { $_.StartTime -ge $StartedAfter } |
         Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
+function Get-OtherBepInExAddons {
+    $excludedRoot = [IO.Path]::GetFullPath($pluginDirectory).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $files = @()
+    foreach ($relativeRoot in @('BepInEx\plugins', 'BepInEx\patchers')) {
+        $root = Join-Path $GamePath $relativeRoot
+        if (Test-Path $root) {
+            $files += Get-ChildItem $root -Recurse -File -Force -ErrorAction SilentlyContinue |
+                Where-Object { -not [IO.Path]::GetFullPath($_.FullName).StartsWith($excludedRoot, [StringComparison]::OrdinalIgnoreCase) }
+        }
+    }
+    return @($files)
+}
+
+function Read-InstallState {
+    if (-not (Test-Path $installStatePath)) {
+        return $null
+    }
+    try {
+        $state = Get-Content $installStatePath -Raw | ConvertFrom-Json
+        if ($state.schemaVersion -ne 1 -or $null -eq $state.bepInExInstalledByTskSkinSwap) {
+            return $null
+        }
+        return $state
+    } catch {
+        return $null
+    }
+}
+
+function Write-InstallState {
+    param(
+        [bool]$BepInExInstalledByTskSkinSwap,
+        [string]$OwnershipSource
+    )
+
+    [ordered]@{
+        schemaVersion = 1
+        bepInExInstalledByTskSkinSwap = $BepInExInstalledByTskSkinSwap
+        ownershipSource = $OwnershipSource
+        recordedAtUtc = [DateTime]::UtcNow.ToString('o')
+    } | ConvertTo-Json | Set-Content -LiteralPath $installStatePath -Encoding UTF8
+}
+
+function Test-LegacyTskBepInExInstall {
+    $loaderFiles = @('.doorstop_version', 'doorstop_config.ini', 'winhttp.dll')
+    $hasLoader = -not ($loaderFiles | Where-Object { -not (Test-Path (Join-Path $GamePath $_)) })
+    return $hasLoader -and (Test-Path $bepInExCore) -and
+        (@(Get-OtherBepInExAddons).Count -eq 0)
 }
 
 function Test-LocalPythonModule {
@@ -151,7 +202,17 @@ if (Get-Process twinkle_starknightsX -ErrorAction SilentlyContinue) {
 
 New-Item -ItemType Directory -Force -Path $toolsRoot | Out-Null
 
-if (-not (Test-Path $bepInExCore)) {
+$bepInExWasPresent = Test-Path $bepInExCore
+$installState = Read-InstallState
+if (-not $bepInExWasPresent) {
+    Write-InstallState -BepInExInstalledByTskSkinSwap $true -OwnershipSource 'installed'
+} elseif (-not $installState) {
+    $legacyOwned = Test-LegacyTskBepInExInstall
+    $source = if ($legacyOwned) { 'legacy-inferred' } else { 'preexisting' }
+    Write-InstallState -BepInExInstalledByTskSkinSwap $legacyOwned -OwnershipSource $source
+}
+
+if (-not $bepInExWasPresent) {
     if (-not (Test-Path $bepInExZip)) {
         Get-RemoteFile -Uri $bepInExUrl -Destination $bepInExZip
     }

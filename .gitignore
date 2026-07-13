@@ -8,3 +8,4 @@ android/node_modules/
 android/dist/
 artifacts/
 *.log
+.install-state.json

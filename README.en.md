@@ -25,7 +25,7 @@ The previous Android installer only worked with a custom development APK. The pu
 
 ## Uninstall
 
-Run the uninstall BAT included in the corresponding download. The mod does not replace the game's original animation files.
+Close the game and run `Uninstall-TskSkinSwap.bat`. Choose `Complete uninstall` to remove the mod, downloaded resources, local tools, and the `mods/TskSkinSwap` folder. BepInEx is also removed when TskSkinSwap installed it and no other add-ons use it. Choose `Disable only` to keep downloads for a faster reinstall. The mod does not replace the game's original animation files.
 
 ## Game Resources
 

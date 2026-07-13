@@ -47,7 +47,12 @@
 
 ## 卸载
 
-双击 `Uninstall-TskSkinSwap.bat`。若还要释放下载资源占用的空间，可在卸载后删除 `TskSkinSwap\downloaded` 文件夹。
+双击 `Uninstall-TskSkinSwap.bat`，然后选择：
+
+1. `Complete uninstall`：删除 MOD、下载资源和本地工具，并自动删除 `mods\TskSkinSwap` 文件夹。若 BepInEx 由本 MOD 安装且没有其他插件正在使用，也会一并移除。
+2. `Disable only`：只停用 MOD，保留下载资源和工具，之后运行 `Apply-TskSkinSwap.bat` 即可快速恢复。
+
+卸载前必须完全关闭游戏。检测到其他 BepInEx 插件时，彻底卸载会保留共用的 BepInEx 环境，不会影响其他 MOD。
 
 ## 常见问题
 

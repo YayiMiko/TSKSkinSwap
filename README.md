@@ -48,7 +48,7 @@
 
 ### 如何恢复原版
 
-运行下载包中的卸载 BAT。工具不会替换游戏原始动画文件。
+完全关闭游戏后运行下载包中的 `Uninstall-TskSkinSwap.bat`。选择 `Complete uninstall` 会删除 MOD、下载资源和本地工具，并在没有其他插件使用时一并移除由本 MOD 安装的 BepInEx；选择 `Disable only` 则保留资源，方便之后快速恢复 MOD。工具不会替换游戏原始动画文件。
 
 ## 资源说明
 
