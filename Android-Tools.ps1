@@ -97,6 +97,24 @@ function Get-TskAndroidPython {
     return $pythonExe
 }
 
+function Start-TskAdbServer {
+    param([Parameter(Mandatory = $true)][string]$AdbExe)
+
+    # Windows PowerShell 5 promotes native stderr to an error record. ADB writes
+    # its normal first-start daemon messages there, so check the exit code instead.
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'SilentlyContinue'
+        & $AdbExe start-server 2>$null | Out-Null
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    if ($exitCode -ne 0) {
+        throw "ADB server failed to start with exit code $exitCode."
+    }
+}
+
 function Get-TskCompatibleSourceApk {
     param(
         [Parameter(Mandatory = $true)][string]$ToolRoot,

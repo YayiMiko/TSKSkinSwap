@@ -27,6 +27,7 @@ $developmentRuntime = Join-Path $toolRoot 'android\dist\tskskinswap.js'
 $runtime = if (Test-Path $releaseRuntime) { $releaseRuntime } else { $developmentRuntime }
 $adbExe = Get-TskAndroidAdb -ToolRoot $toolRoot
 $pythonExe = Get-TskAndroidPython -ToolRoot $toolRoot
+Start-TskAdbServer -AdbExe $adbExe
 
 if (-not (Test-Path $runtime)) {
     $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue

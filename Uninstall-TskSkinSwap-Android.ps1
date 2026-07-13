@@ -19,6 +19,7 @@ if ($Package -notmatch '^[A-Za-z0-9._]+$') {
     throw 'Invalid Android package name.'
 }
 $adbExe = Get-TskAndroidAdb -ToolRoot $toolRoot
+Start-TskAdbServer -AdbExe $adbExe
 
 if ((& $adbExe get-state 2>$null) -ne 'device') {
     throw 'No authorized Android device is connected. Unlock the phone and allow USB debugging.'
