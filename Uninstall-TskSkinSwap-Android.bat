@@ -25,6 +25,12 @@ echo Required files are missing.
 echo Extract the entire release ZIP to a normal folder, then run this BAT again.
 
 :finished
+call :stop_bundled_adb
 echo.
 pause
 exit /b %EXIT_CODE%
+
+:stop_bundled_adb
+if exist "%~dp0.tools\android-installer\platform-tools\adb.exe" "%~dp0.tools\android-installer\platform-tools\adb.exe" kill-server >nul 2>&1
+if exist "%~dp0.tools\android\platform-tools\adb.exe" "%~dp0.tools\android\platform-tools\adb.exe" kill-server >nul 2>&1
+exit /b 0
