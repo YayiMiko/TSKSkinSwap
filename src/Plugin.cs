@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Security.Cryptography;
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
@@ -50,7 +51,10 @@ public sealed class Plugin : BasePlugin
     }
 }
 
-[HarmonyPatch(typeof(EffectCutinManager), nameof(EffectCutinManager.SetNormalCutin))]
+[HarmonyPatch(
+    typeof(EffectCutinManager),
+    nameof(EffectCutinManager.SetNormalCutin),
+    new[] { typeof(int), typeof(Transform), typeof(bool), typeof(bool), typeof(bool) })]
 internal static class NormalCutinRequestPatch
 {
     [HarmonyPrefix]
@@ -60,7 +64,7 @@ internal static class NormalCutinRequestPatch
     }
 }
 
-[HarmonyPatch(typeof(SkeletonDataAsset), nameof(SkeletonDataAsset.GetSkeletonData))]
+[HarmonyPatch(typeof(SkeletonDataAsset), nameof(SkeletonDataAsset.GetSkeletonData), new[] { typeof(bool) })]
 internal static class SkeletonDataPatch
 {
     [HarmonyPrefix]
@@ -92,7 +96,10 @@ internal static class SkeletonGraphicInitializePatch
     [HarmonyFinalizer]
     private static Exception? Finalizer(Exception? __exception, SkeletonGraphic __instance)
     {
-        SkinSwapRuntime.CompleteNormalCutin(__instance.skeletonDataAsset);
+        if (__exception is not null)
+        {
+            SkinSwapRuntime.CompleteNormalCutin(__instance.skeletonDataAsset);
+        }
         return __exception;
     }
 }
@@ -100,11 +107,10 @@ internal static class SkeletonGraphicInitializePatch
 internal static class SkinSwapRuntime
 {
     private static readonly HashSet<string> ExcludedCharacterIds = new(StringComparer.Ordinal) { "1141001" };
+    private static readonly HashSet<string> FailedCharacters = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, CharacterMapping> Mappings = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, PreparedTransform> PreparedTransforms = new(StringComparer.Ordinal);
-    private static readonly Dictionary<int, OverrideRequest> ActiveOverrides = new();
-    private static readonly List<UnityEngine.Object> RuntimeObjects = new();
-    private static readonly List<Spine.Animation> RuntimeAnimations = new();
+    private static readonly Dictionary<int, Queue<OverrideRequest>> ActiveOverrides = new();
     private static readonly object Gate = new();
 
     internal static int MappingCount => Mappings.Count;
@@ -112,6 +118,7 @@ internal static class SkinSwapRuntime
     internal static bool LoadConfiguration()
     {
         Mappings.Clear();
+        FailedCharacters.Clear();
         var path = Path.Combine(Paths.ConfigPath, "TskSkinSwap", "mappings.json");
         if (!File.Exists(path))
         {
@@ -123,7 +130,7 @@ internal static class SkinSwapRuntime
         {
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var document = JsonSerializer.Deserialize<MappingDocument>(File.ReadAllText(path), options);
-            if (document?.Characters is null)
+            if (document?.Characters is null || !ValidateMappingFingerprint(document))
             {
                 return false;
             }
@@ -149,6 +156,12 @@ internal static class SkinSwapRuntime
                     Plugin.PluginLog.LogWarning($"Skipped {mapping.CharacterId}: transform bundle is missing.");
                     continue;
                 }
+                if (mapping.TransformBundleSize > 0
+                    && new FileInfo(mapping.TransformBundle).Length != mapping.TransformBundleSize)
+                {
+                    Plugin.PluginLog.LogWarning($"Skipped {mapping.CharacterId}: transform bundle size does not match the mapping.");
+                    continue;
+                }
 
                 Mappings[mapping.CharacterId] = mapping;
             }
@@ -160,6 +173,80 @@ internal static class SkinSwapRuntime
             Plugin.PluginLog.LogError($"Unable to read mappings: {exception}");
             return false;
         }
+    }
+
+    private static bool ValidateMappingFingerprint(MappingDocument document)
+    {
+        if (document.SchemaVersion != 2)
+        {
+            Plugin.PluginLog.LogWarning(
+                $"Unsupported mapping schema {document.SchemaVersion}; run Apply-TskSkinSwap.bat again."
+            );
+            RuntimeFileLog.Write($"MAPPING_REJECTED reason=schema actual={document.SchemaVersion} expected=2");
+            return false;
+        }
+
+        try
+        {
+            var gameAssembly = Path.Combine(Paths.GameRootPath, "GameAssembly.dll");
+            var globalMetadata = Path.Combine(
+                Paths.GameRootPath,
+                "twinkle_starknightsX_Data",
+                "il2cpp_data",
+                "Metadata",
+                "global-metadata.dat"
+            );
+            var catalog = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "AppData",
+                "LocalLow",
+                "FANZAGAMES",
+                "twinkle_starknightsX",
+                "com.unity.addressables",
+                "catalog_0.0.0.json"
+            );
+            var checks = new[]
+            {
+                (Name: "GameAssembly", Path: gameAssembly, Expected: document.GameAssemblySha256),
+                (Name: "GlobalMetadata", Path: globalMetadata, Expected: document.GlobalMetadataSha256),
+                (Name: "Catalog", Path: catalog, Expected: document.CatalogSha256),
+            };
+            foreach (var check in checks)
+            {
+                if (string.IsNullOrWhiteSpace(check.Expected) || !File.Exists(check.Path))
+                {
+                    Plugin.PluginLog.LogWarning(
+                        $"Mapping fingerprint input is missing for {check.Name}; run Apply-TskSkinSwap.bat again."
+                    );
+                    RuntimeFileLog.Write($"MAPPING_REJECTED reason=missingFingerprintInput name={check.Name}");
+                    return false;
+                }
+
+                var actual = HashFile(check.Path);
+                if (!string.Equals(actual, check.Expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    Plugin.PluginLog.LogWarning(
+                        $"The game or catalog changed ({check.Name}); TskSkinSwap is disabled until Apply-TskSkinSwap.bat is run again."
+                    );
+                    RuntimeFileLog.Write($"MAPPING_REJECTED reason=fingerprintMismatch name={check.Name}");
+                    return false;
+                }
+            }
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Plugin.PluginLog.LogError($"Unable to validate the mapping fingerprint: {exception}");
+            RuntimeFileLog.Write($"MAPPING_REJECTED reason=fingerprintError error={exception.GetType().Name}");
+            return false;
+        }
+    }
+
+    private static string HashFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        using var sha256 = SHA256.Create();
+        return Convert.ToHexString(sha256.ComputeHash(stream));
     }
 
     internal static void RunSelfTest()
@@ -228,6 +315,10 @@ internal static class SkinSwapRuntime
 
         lock (Gate)
         {
+            if (FailedCharacters.Contains(characterId))
+            {
+                return;
+            }
             try
             {
                 RemoveExpiredOverrides();
@@ -239,20 +330,25 @@ internal static class SkinSwapRuntime
                 var sourceAsset = manager.cutinData[characterId];
                 var sourceAssetInstanceId = sourceAsset.GetInstanceID();
                 var prepared = PrepareTransform(mapping, sourceAssetInstanceId);
-                var request = new OverrideRequest(sourceAsset, prepared, DateTimeOffset.UtcNow.AddSeconds(10));
+                var request = new OverrideRequest(sourceAsset, prepared, DateTimeOffset.UtcNow.AddSeconds(30));
                 var instanceId = sourceAssetInstanceId;
-                if (ActiveOverrides.TryGetValue(instanceId, out var previous))
+                if (!ActiveOverrides.TryGetValue(instanceId, out var requests))
                 {
-                    previous.RestoreTemporaryFields(sourceAsset);
+                    requests = new Queue<OverrideRequest>();
+                    ActiveOverrides[instanceId] = requests;
                 }
 
-                ActiveOverrides[instanceId] = request;
-                RuntimeFileLog.Write($"OVERRIDE_REGISTERED character={characterId} asset={sourceAsset.name} instance={sourceAsset.GetInstanceID()}");
+                requests.Enqueue(request);
+                RuntimeFileLog.Write(
+                    $"OVERRIDE_REGISTERED character={characterId} asset={sourceAsset.name} "
+                    + $"instance={sourceAsset.GetInstanceID()} queue={requests.Count}"
+                );
             }
             catch (Exception exception)
             {
+                FailedCharacters.Add(characterId);
                 Plugin.PluginLog.LogError($"Failed to register Cutin override for character {characterId}: {exception}");
-                RuntimeFileLog.Write($"OVERRIDE_REGISTER_FAILED character={characterId}: {exception}");
+                RuntimeFileLog.Write($"OVERRIDE_REGISTER_FAILED character={characterId} disabledForSession=true: {exception}");
             }
         }
     }
@@ -268,7 +364,7 @@ internal static class SkinSwapRuntime
         lock (Gate)
         {
             RemoveExpiredOverrides();
-            if (!ActiveOverrides.TryGetValue(asset.GetInstanceID(), out var request))
+            if (!TryGetActiveRequest(asset.GetInstanceID(), out var request))
             {
                 return false;
             }
@@ -292,7 +388,7 @@ internal static class SkinSwapRuntime
         lock (Gate)
         {
             RemoveExpiredOverrides();
-            if (!ActiveOverrides.TryGetValue(asset.GetInstanceID(), out var request))
+            if (!TryGetActiveRequest(asset.GetInstanceID(), out var request))
             {
                 return false;
             }
@@ -315,20 +411,36 @@ internal static class SkinSwapRuntime
         {
             RemoveExpiredOverrides();
             var instanceId = asset.GetInstanceID();
-            if (!ActiveOverrides.TryGetValue(instanceId, out var request))
+            if (!ActiveOverrides.TryGetValue(instanceId, out var requests) || requests.Count == 0)
             {
                 return;
             }
 
+            var request = requests.Dequeue();
             request.RestoreTemporaryFields(asset);
-            ActiveOverrides.Remove(instanceId);
+            if (requests.Count == 0)
+            {
+                ActiveOverrides.Remove(instanceId);
+            }
             RuntimeFileLog.Write($"OVERRIDE_COMPLETED character={request.CharacterId} skeleton={request.SkeletonDataServed} state={request.AnimationStateServed}");
         }
     }
 
-    private static void EnsureCutAnimationAliases(Spine.SkeletonData skeletonData, string characterId)
+    private static bool TryGetActiveRequest(int instanceId, out OverrideRequest request)
+    {
+        request = null!;
+        if (!ActiveOverrides.TryGetValue(instanceId, out var requests) || requests.Count == 0)
+        {
+            return false;
+        }
+        request = requests.Peek();
+        return true;
+    }
+
+    private static List<Spine.Animation> EnsureCutAnimationAliases(Spine.SkeletonData skeletonData, string characterId)
     {
         var animations = skeletonData.Animations;
+        var aliases = new List<Spine.Animation>();
         Spine.Animation? source = null;
         for (var index = 0; index < animations.Count; index++)
         {
@@ -354,9 +466,10 @@ internal static class SkinSwapRuntime
 
             var alias = new Spine.Animation(aliasName, source.Timelines, source.Duration);
             animations.Add(alias);
-            RuntimeAnimations.Add(alias);
+            aliases.Add(alias);
             RuntimeFileLog.Write($"Added animation alias character={characterId} {aliasName}->{source.Name}");
         }
+        return aliases;
     }
 
     private static PreparedTransform PrepareTransform(CharacterMapping mapping, int sourceAssetInstanceId = 0)
@@ -369,7 +482,6 @@ internal static class SkinSwapRuntime
             }
 
             PreparedTransforms.Remove(mapping.CharacterId);
-            RuntimeObjects.Remove(existing.Asset);
             RuntimeFileLog.Write(
                 $"TRANSFORM_INVALIDATED character={mapping.CharacterId} "
                 + $"oldSourceInstance={existing.SourceAssetInstanceId} newSourceInstance={sourceAssetInstanceId}"
@@ -392,7 +504,7 @@ internal static class SkinSwapRuntime
                 throw new InvalidOperationException($"Transform SkeletonData could not be parsed: {mapping.TransformSkeletonAsset}");
             }
 
-            EnsureCutAnimationAliases(transformData, mapping.CharacterId);
+            var aliases = EnsureCutAnimationAliases(transformData, mapping.CharacterId);
             var stateData = transformAsset.GetAnimationStateData();
             if (stateData is null)
             {
@@ -405,12 +517,11 @@ internal static class SkinSwapRuntime
                 transformAsset,
                 transformData,
                 stateData,
-                !owned
+                aliases
             );
             if (owned)
             {
                 PreparedTransforms[mapping.CharacterId] = prepared;
-                RuntimeObjects.Add(transformAsset);
             }
             RuntimeFileLog.Write(
                 $"TRANSFORM_PREPARED character={mapping.CharacterId} source={(owned ? "mod" : "game")} "
@@ -481,15 +592,19 @@ internal static class SkinSwapRuntime
     private static void RemoveExpiredOverrides()
     {
         var now = DateTimeOffset.UtcNow;
-        foreach (var instanceId in ActiveOverrides
-                     .Where(item => item.Value.ExpiresAt <= now)
-                     .Select(item => item.Key)
-                     .ToArray())
+        foreach (var instanceId in ActiveOverrides.Keys.ToArray())
         {
-            var request = ActiveOverrides[instanceId];
-            request.RestoreTemporaryFields(request.SourceAsset);
-            ActiveOverrides.Remove(instanceId);
-            RuntimeFileLog.Write($"OVERRIDE_EXPIRED character={request.CharacterId} skeleton={request.SkeletonDataServed} state={request.AnimationStateServed}");
+            var requests = ActiveOverrides[instanceId];
+            while (requests.Count > 0 && requests.Peek().ExpiresAt <= now)
+            {
+                var request = requests.Dequeue();
+                request.RestoreTemporaryFields(request.SourceAsset);
+                RuntimeFileLog.Write($"OVERRIDE_EXPIRED character={request.CharacterId} skeleton={request.SkeletonDataServed} state={request.AnimationStateServed}");
+            }
+            if (requests.Count == 0)
+            {
+                ActiveOverrides.Remove(instanceId);
+            }
         }
     }
 
@@ -499,7 +614,7 @@ internal static class SkinSwapRuntime
         SkeletonDataAsset Asset,
         Spine.SkeletonData Data,
         Spine.AnimationStateData StateData,
-        bool Borrowed);
+        List<Spine.Animation> Aliases);
 
     private sealed class OverrideRequest
     {
@@ -551,6 +666,18 @@ internal static class SkinSwapRuntime
 
 internal sealed class MappingDocument
 {
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; init; }
+
+    [JsonPropertyName("gameAssemblySha256")]
+    public string GameAssemblySha256 { get; init; } = string.Empty;
+
+    [JsonPropertyName("globalMetadataSha256")]
+    public string GlobalMetadataSha256 { get; init; } = string.Empty;
+
+    [JsonPropertyName("catalogSha256")]
+    public string CatalogSha256 { get; init; } = string.Empty;
+
     [JsonPropertyName("characters")]
     public List<CharacterMapping>? Characters { get; init; }
 }
@@ -563,28 +690,23 @@ internal sealed class CharacterMapping
     [JsonPropertyName("enabled")]
     public bool Enabled { get; init; }
 
-    [JsonPropertyName("cutinBundle")]
-    public string CutinBundle { get; init; } = string.Empty;
-
-    [JsonPropertyName("cutinAtlasAsset")]
-    public string CutinAtlasAsset { get; init; } = string.Empty;
-
     [JsonPropertyName("transformBundle")]
     public string TransformBundle { get; init; } = string.Empty;
-
-    [JsonPropertyName("transformMaterialAsset")]
-    public string TransformMaterialAsset { get; init; } = string.Empty;
 
     [JsonPropertyName("transformSkeletonAsset")]
     public string TransformSkeletonAsset { get; init; } = string.Empty;
 
-    [JsonPropertyName("syntheticAtlasFile")]
-    public string SyntheticAtlasFile { get; init; } = string.Empty;
+    [JsonPropertyName("transformBundleSize")]
+    public long TransformBundleSize { get; init; }
+
+    [JsonPropertyName("transformBundleCatalogHash")]
+    public string TransformBundleCatalogHash { get; init; } = string.Empty;
 }
 
 internal static class RuntimeFileLog
 {
     private static readonly object Gate = new();
+    private const long MaxLogBytes = 2 * 1024 * 1024;
 
     internal static void Write(string message)
     {
@@ -595,7 +717,14 @@ internal static class RuntimeFileLog
             var line = $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}";
             lock (Gate)
             {
-                File.AppendAllText(Path.Combine(directory, "runtime.log"), line);
+                var path = Path.Combine(directory, "runtime.log");
+                if (File.Exists(path) && new FileInfo(path).Length >= MaxLogBytes)
+                {
+                    var previous = Path.Combine(directory, "runtime.previous.log");
+                    File.Delete(previous);
+                    File.Move(path, previous);
+                }
+                File.AppendAllText(path, line);
             }
         }
         catch

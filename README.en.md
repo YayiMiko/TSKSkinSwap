@@ -15,7 +15,7 @@ Lulu (`[炎宿せし宝石] ルルゥ`, internal ID `1141001`) is currently excl
 3. Close the game and double-click `Apply-TskSkinSwap.bat`.
 4. Start the game after `Completed successfully` appears.
 
-The first installation downloads about 2 GB. Run the BAT again after a game update.
+The first installation downloads about 1.2 GB. Run the BAT again after a game update. Updates are staged and validated before replacing the working installation.
 
 To upgrade from an older PC release, you do not need to uninstall it. Close the game, replace the old `TskSkinSwap` folder with the fully extracted 1.1.3 folder, and run the new `Apply-TskSkinSwap.bat`. Existing valid downloads will be reused.
 

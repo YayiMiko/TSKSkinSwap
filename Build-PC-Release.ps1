@@ -30,7 +30,6 @@ Copy-Item (Join-Path $toolRoot 'Uninstall-TskSkinSwap.bat') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Uninstall-TskSkinSwap.ps1') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Update-TskSkinSwap.ps1') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'catalog_downloader.py') $stagingRoot
-Copy-Item (Join-Path $toolRoot 'scanner.py') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'src\Plugin.cs') (Join-Path $stagingRoot 'src')
 Copy-Item (Join-Path $toolRoot 'src\TskSkinSwap.csproj') (Join-Path $stagingRoot 'src')
 

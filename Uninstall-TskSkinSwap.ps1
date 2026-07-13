@@ -10,6 +10,8 @@ $pluginDirectory = Join-Path $GamePath 'BepInEx\plugins\TskSkinSwap'
 $configDirectory = Join-Path $GamePath 'BepInEx\config\TskSkinSwap'
 $bepInExCore = Join-Path $GamePath 'BepInEx\core\BepInEx.Unity.IL2CPP.dll'
 $installStatePath = Join-Path $PSScriptRoot '.install-state.json'
+$bepInExArchive = Join-Path $PSScriptRoot '.tools\BepInEx-Unity.IL2CPP-win-x64-6.0.0-pre.2.zip'
+$bepInExSha256 = '616ec7eb06cf11b2a0000e8fcef04d1b12bb58e84a2e0bdac9523234fc193ceb'
 
 function Get-OtherBepInExAddons {
     $excludedRoot = [IO.Path]::GetFullPath($pluginDirectory).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
@@ -27,7 +29,9 @@ function Get-OtherBepInExAddons {
 function Test-LegacyTskBepInExInstall {
     $loaderFiles = @('.doorstop_version', 'doorstop_config.ini', 'winhttp.dll')
     $hasLoader = -not ($loaderFiles | Where-Object { -not (Test-Path (Join-Path $GamePath $_)) })
-    return $hasLoader -and (Test-Path $bepInExCore) -and
+    $hasInstallerArchive = (Test-Path $bepInExArchive) -and
+        ((Get-FileHash -LiteralPath $bepInExArchive -Algorithm SHA256).Hash -eq $bepInExSha256)
+    return $hasLoader -and $hasInstallerArchive -and (Test-Path $bepInExCore) -and
         (@(Get-OtherBepInExAddons).Count -eq 0)
 }
 

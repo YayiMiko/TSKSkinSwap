@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  pc-tools:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run downloader tests
+        run: python -m unittest discover -s tests -v
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -File -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | Write-Error
+            }
+          }
+          if ($failed) { exit 1 }
+      - name: Test update rollback
+        shell: powershell
+        run: .\tests\Test-UpdateTransaction.ps1
+      - name: Test uninstall ownership
+        shell: powershell
+        run: .\tests\Test-UninstallOwnership.ps1

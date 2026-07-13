@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$GamePath = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+    [string]$GamePath = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
+    [switch]$SkipInstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +21,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Plugin build failed with exit code $LASTEXITCODE"
 }
 
-$pluginDir = Join-Path $GamePath 'BepInEx\plugins\TskSkinSwap'
-New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'src\bin\Release\net6.0\TskSkinSwap.dll') $pluginDir -Force
-Write-Host "Installed plugin: $(Join-Path $pluginDir 'TskSkinSwap.dll')"
+if (-not $SkipInstall) {
+    $pluginDir = Join-Path $GamePath 'BepInEx\plugins\TskSkinSwap'
+    New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
+    Copy-Item (Join-Path $PSScriptRoot 'src\bin\Release\net6.0\TskSkinSwap.dll') $pluginDir -Force
+    Write-Host "Installed plugin: $(Join-Path $pluginDir 'TskSkinSwap.dll')"
+}

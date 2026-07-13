@@ -10,12 +10,8 @@ import struct
 import sys
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-
-try:
-    import UnityPy
-except ImportError:  # Android catalog discovery does not inspect bundle contents.
-    UnityPy = None
 
 
 TRANSFORM_TARGET_RE = re.compile(
@@ -68,6 +64,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--quality", default="HighQuality", choices=("HighQuality", "LowQuality"))
     parser.add_argument("--edition", default="adult", choices=("adult", "general"))
     parser.add_argument("--character-id", action="append", default=[])
+    parser.add_argument("--transforms-only", action="store_true")
+    parser.add_argument("--mapping-output", type=Path)
+    parser.add_argument("--game-dir", type=Path)
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -195,8 +194,8 @@ def discover_targets(
         if not isinstance(options, dict):
             raise ValueError(f"Invalid bundle options for {primary_key}")
         url = expand_internal_id(catalog, str(internal_ids[bundle_entry.internal_id]))
-        if not url.startswith(("https://", "http://")):
-            raise ValueError(f"Refusing non-HTTP bundle location for {primary_key}: {url}")
+        if not url.startswith("https://"):
+            raise ValueError(f"Refusing non-HTTPS bundle location for {primary_key}: {url}")
 
         target = BundleTarget(
             kind="transform" if transform_match is not None else "cutin",
@@ -236,35 +235,116 @@ def discover_targets(
     return catalog_sha256(catalog_path), targets
 
 
-def contains_asset(path: Path, asset_path: str) -> bool:
-    if UnityPy is None:
-        raise RuntimeError("UnityPy is required to inspect bundle contents")
-    environment = UnityPy.load(path.read_bytes())
-    return any(str(container_path) == asset_path for container_path in environment.container)
-
-
 def validate_bundle(path: Path, target: BundleTarget) -> None:
     actual_size = path.stat().st_size
     if target.size and actual_size != target.size:
         raise ValueError(f"size mismatch: expected {target.size}, received {actual_size}")
-    if not contains_asset(path, target.asset_path):
-        raise ValueError(f"bundle does not contain {target.asset_path}")
+    with path.open("rb") as stream:
+        if stream.read(7) != b"UnityFS":
+            raise ValueError("bundle does not have a UnityFS header")
 
 
 def download(target: BundleTarget, destination: Path) -> None:
     temporary = destination.with_suffix(destination.suffix + ".part")
-    temporary.unlink(missing_ok=True)
-    request = urllib.request.Request(target.url, headers={"User-Agent": "TskSkinSwap/1.0"})
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response, temporary.open("wb") as output:
-            if response.status != 200:
-                raise ValueError(f"HTTP {response.status}")
+    if temporary.is_file() and target.size and temporary.stat().st_size == target.size:
+        try:
+            validate_bundle(temporary, target)
+            os.replace(temporary, destination)
+            return
+        except Exception:
+            temporary.unlink()
+
+    offset = temporary.stat().st_size if temporary.is_file() else 0
+    if target.size and offset > target.size:
+        temporary.unlink()
+        offset = 0
+
+    headers = {"User-Agent": "TskSkinSwap/1.0"}
+    if offset:
+        headers["Range"] = f"bytes={offset}-"
+    request = urllib.request.Request(target.url, headers=headers)
+    with urllib.request.urlopen(request, timeout=60) as response:
+        final_url = response.geturl()
+        if not final_url.startswith("https://"):
+            raise ValueError(f"refusing download redirected to a non-HTTPS URL: {final_url}")
+        append = offset > 0 and response.status == 206
+        if append:
+            content_range = response.headers.get("Content-Range", "")
+            if not content_range.startswith(f"bytes {offset}-"):
+                raise ValueError(
+                    f"invalid Content-Range for resumed download: {content_range or 'missing'}"
+                )
+        mode = "ab" if append else "wb"
+        with temporary.open(mode) as output:
             while chunk := response.read(1024 * 1024):
                 output.write(chunk)
-        validate_bundle(temporary, target)
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
+    validate_bundle(temporary, target)
+    os.replace(temporary, destination)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_json_atomic(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    os.replace(temporary, path)
+
+
+def write_pc_mapping(
+    path: Path,
+    game_dir: Path,
+    catalog_hash: str,
+    quality: str,
+    edition: str,
+    targets: list[BundleTarget],
+    output_dir: Path,
+) -> None:
+    game_assembly = game_dir / "GameAssembly.dll"
+    global_metadata = game_dir / "twinkle_starknightsX_Data/il2cpp_data/Metadata/global-metadata.dat"
+    if not game_assembly.is_file() or not global_metadata.is_file():
+        raise ValueError(f"GameAssembly.dll or global-metadata.dat is missing under {game_dir}")
+
+    transforms = sorted(
+        (target for target in targets if target.kind == "transform"),
+        key=lambda target: target.character_id,
+    )
+    characters = [
+        {
+            "characterId": target.character_id,
+            "enabled": True,
+            "transformBundle": str((output_dir / file_name(target)).resolve()),
+            "transformSkeletonAsset": target.asset_path,
+            "transformBundleSize": target.size,
+            "transformBundleCatalogHash": target.catalog_hash,
+        }
+        for target in transforms
+    ]
+    payload: dict[str, object] = {
+        "schemaVersion": 2,
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "quality": quality,
+        "edition": edition,
+        "gameAssemblySha256": sha256_file(game_assembly),
+        "globalMetadataSha256": sha256_file(global_metadata),
+        "catalogSha256": catalog_hash,
+        "statistics": {
+            "transformBundles": len(transforms),
+            "compatibleCharacters": len(characters),
+        },
+        "characters": characters,
+    }
+    write_json_atomic(path, payload)
 
 
 def file_name(target: BundleTarget) -> str:
@@ -280,8 +360,15 @@ def main() -> int:
     output_dir = args.output_dir.resolve()
     if not catalog_path.is_file():
         raise SystemExit(f"Addressables catalog does not exist: {catalog_path}")
+    if args.mapping_output and not args.game_dir:
+        raise SystemExit("--mapping-output requires --game-dir")
 
-    catalog_hash, targets = discover_targets(catalog_path, args.quality, args.edition)
+    catalog_hash, targets = discover_targets(
+        catalog_path,
+        args.quality,
+        args.edition,
+        require_cutins=not args.transforms_only,
+    )
     if args.character_id:
         selected_ids = set(args.character_id)
         targets = [target for target in targets if target.character_id in selected_ids]
@@ -297,8 +384,6 @@ def main() -> int:
     reused = 0
     failed: list[str] = []
     records: list[dict[str, object]] = []
-    expected_files = {file_name(target) for target in targets}
-
     character_count = len({target.character_id for target in targets})
     print(f"Catalog contains {character_count} characters and {len(targets)} required bundles.")
     for index, target in enumerate(targets, start=1):
@@ -312,7 +397,6 @@ def main() -> int:
                 except Exception:
                     if args.dry_run:
                         raise
-                    destination.unlink()
                     print(f"[{index}/{len(targets)}] Replacing invalid bundle for character {target.character_id}...")
                     download(target, destination)
                     downloaded += 1
@@ -345,28 +429,27 @@ def main() -> int:
         )
 
     if not args.dry_run:
-        if not args.character_id:
-            for pattern in ("tf_*.bundle", "bc_*.bundle"):
-                for obsolete in output_dir.glob(pattern):
-                    if obsolete.name not in expected_files:
-                        obsolete.unlink()
-        manifest_path.write_text(
-            json.dumps(
-                {
-                    "schemaVersion": 1,
-                    "catalogSha256": catalog_hash,
-                    "quality": args.quality,
-                    "edition": args.edition,
-                    "bundles": records,
-                    "errors": failed,
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-            newline="\n",
+        write_json_atomic(
+            manifest_path,
+            {
+                "schemaVersion": 2,
+                "catalogSha256": catalog_hash,
+                "quality": args.quality,
+                "edition": args.edition,
+                "bundles": records,
+                "errors": failed,
+            },
         )
+        if not failed and args.mapping_output:
+            write_pc_mapping(
+                args.mapping_output.resolve(),
+                args.game_dir.resolve(),
+                catalog_hash,
+                args.quality,
+                args.edition,
+                targets,
+                output_dir,
+            )
 
     print(f"Required bundles: reused={reused} downloaded={downloaded} failed={len(failed)}")
     for error in failed:
