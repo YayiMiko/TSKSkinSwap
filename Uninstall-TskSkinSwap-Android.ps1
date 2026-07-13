@@ -30,18 +30,42 @@ if (-not ((& $adbExe shell pm path $Package 2>$null) -like 'package:*')) {
     throw "Android package is not installed: $Package"
 }
 
+$apkCache = Join-Path $toolRoot '.tools\android-installer\apk'
+$metadataPath = Join-Path $apkCache 'source-apk.json'
+if (-not (Test-Path $metadataPath)) {
+    throw 'The original compatible APK cache is missing. Run the current Android installer once, then retry.'
+}
+$metadata = Get-Content -Raw -LiteralPath $metadataPath | ConvertFrom-Json
+if ($metadata.schemaVersion -ne 1 -or
+    $metadata.assetName -notmatch '^Kurusuta-X\.Mod_[0-9.]+_patched\.apk$' -or
+    $metadata.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+    throw 'The cached compatible APK metadata is invalid.'
+}
+$sourceApk = Join-Path $apkCache $metadata.assetName
+if (-not (Test-Path $sourceApk)) {
+    throw 'The cached compatible APK is missing. Run the current Android installer once, then retry.'
+}
+$sourceHash = (Get-FileHash -LiteralPath $sourceApk -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($sourceHash -ne $metadata.sha256.ToLowerInvariant()) {
+    throw 'The cached compatible APK failed SHA-256 validation.'
+}
+
 $filesRoot = "/sdcard/Android/data/$Package/files"
 $modRoot = "$filesRoot/tskskinswap"
 & $adbExe shell am force-stop $Package | Out-Null
+& $adbExe install -r $sourceApk
+if ($LASTEXITCODE -ne 0) {
+    throw 'ADB refused the original compatible APK. The installed app was not uninstalled.'
+}
 & $adbExe shell "rm -f '$filesRoot/frida-scripts/tskskinswap.js' '$modRoot/mappings.json' '$modRoot/runtime.log'" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Unable to remove the Android runtime files.' }
 
 if ($RemoveBundles) {
     & $adbExe shell "rm -rf '$modRoot/bundles'" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Unable to remove the downloaded Android bundles.' }
-    Write-Host 'Android MOD runtime and downloaded transform bundles were removed.'
+    Write-Host 'The compatible APK was restored and downloaded transform bundles were removed.'
 } else {
-    Write-Host 'Android MOD runtime was removed. Downloaded transform bundles were kept for reuse.'
+    Write-Host 'The compatible APK was restored. Downloaded transform bundles were kept for reuse.'
 }
 
 if (-not $NoRestart) {

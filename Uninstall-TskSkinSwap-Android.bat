@@ -12,7 +12,7 @@ set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
 if not "%EXIT_CODE%"=="0" goto failed
-echo Uninstall completed. The original animations are active again.
+echo Uninstall completed. The compatible Android package and original animations are active again.
 goto finished
 
 :failed

@@ -1,37 +1,32 @@
 # Android Development
 
-## User Installation
+## Current Status
 
-The current installer targets the compatible Android package (APK) named `jp.co.fanzagames.twinklestarknightsx_a_mod`, with Frida Gadget `script-directory` support. Root access is not required. Enable USB debugging, connect and authorize the phone, then double-click:
+The public-APK-compatible installer passed the complete device regression checklist on a vivo X100 Pro running Android 16. Android 0.2.0 is distributed as a dev prerelease first; do not mark it as Latest until broader user testing is complete.
 
-```text
-Apply-TskSkinSwap-Android.bat
-```
+## Installation Architecture
 
-The launcher downloads portable Python and Android Platform Tools when they are unavailable. It pulls only the current Addressables catalog, checks the exact transform paths under `UnityCache/Shared`, and reuses valid cache files in place. Missing transform bundles are downloaded on the PC from the catalog's official CDN URL, validated as UnityFS files, and pushed to `<persistentDataPath>/tskskinswap/bundles/`.
+`Apply-TskSkinSwap-Android.bat` now performs the complete PC-assisted flow without root access:
 
-Rerunning the installer after an update reuses valid UnityCache and MOD-owned files. The July 2026 test catalog contains 267 mappings; the test device reused 56 cached transforms and required about 0.66 GiB for the remaining 211. Run a read-only inventory with:
+1. Download the latest standard Kurusuta APK from `anosu/DMM-Mod` through the GitHub Release API and validate GitHub's size and SHA-256 metadata.
+2. Validate the package name, version, signer, Frida Gadget, and embedded translation script.
+3. Combine the translation and TskSkinSwap Frida bundles in isolated scopes, replace only `lib/arm64-v8a/libfrida-gadget.script.so`, align the APK, and sign it with Objection's pinned, publicly available development key.
+4. Install with `adb install -r`; never uninstall or clear application data.
+5. Reuse valid bundles from `UnityCache/Shared` or MOD storage, download only missing transformation bundles from the catalog's official URLs, write `mappings.json`, and launch the game.
 
-```powershell
-.\Apply-TskSkinSwap-Android.ps1 -DryRun
-```
+APK files, signing tools, game assets, generated mappings, and downloaded bundles remain local and untracked. `-DryRun` inventories the current catalog and cache without patching the APK or downloading resources.
 
-The installer does not pull, copy, or rewrite the phone's existing multi-gigabyte game data. APK patching is not yet part of this launcher.
-
-## Runtime Development
-
-The Android runtime is an autonomous Frida Gadget script for the ARM64 IL2CPP client. It is loaded beside the existing translation script through Gadget's `script-directory` interaction.
+## Development Commands
 
 ```powershell
 cd android
-npm install
+npm ci
 npm run build
+cd ..
+.\Apply-TskSkinSwap-Android.ps1 -DryRun
+.\Build-TskSkinSwap-AndroidApk.ps1 -InputApk <compatible.apk> -SkipRuntimeBuild
 ```
 
-Runtime configuration is read from `<persistentDataPath>/tskskinswap/mappings.json`. Bundle paths may point directly to valid Unity cache entries, allowing the installer to reuse game data instead of copying it.
+The runtime reads `<persistentDataPath>/tskskinswap/mappings.json`. It observes `EffectCutinManager.LoadCutin` to preload only needed transformation assets, then replaces that manager's `cutinData` entry during `SetNormalCutin`. Do not patch `SkeletonDataAsset.GetSkeletonData`; those assets are shared with the home screen.
 
-The runtime observes `EffectCutinManager.LoadCutin` to preload only the transform assets needed by the active Cutin view. When `SetNormalCutin` runs, it replaces that manager's `cutinData` entry with the prepared transform `SkeletonDataAsset`. Do not patch `SkeletonDataAsset.GetSkeletonData`: those assets are shared with the home screen and global mutation corrupts unrelated Spine views.
-
-The current runtime replaces the Cutin used by both Normal Attack 1 and Normal Attack 2 in battle and in the non-battle animation preview. Returning to the home screen and entering a second battle do not retain the replacement outside the Cutin manager. A future optional mode may restrict replacement to Normal Attack 2 only.
-
-APK files, signing tools, extracted game content, generated scripts, mappings, and downloaded bundles must remain untracked.
+Both Normal Attack 1 and Normal Attack 2 use the replacement. Lulu (`1141001`) remains excluded. Uninstall restores the cached, unmodified compatible APK with `adb install -r` and keeps downloaded transformation bundles by default.

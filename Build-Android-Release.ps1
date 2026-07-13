@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = '0.1.2'
+    [string]$Version = '0.2.0-dev'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -44,10 +44,13 @@ Copy-Item (Join-Path $toolRoot 'CHANGELOG.md') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'THIRD_PARTY.md') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Apply-TskSkinSwap-Android.bat') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Apply-TskSkinSwap-Android.ps1') $stagingRoot
+Copy-Item (Join-Path $toolRoot 'Build-TskSkinSwap-AndroidApk.ps1') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Uninstall-TskSkinSwap-Android.bat') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Uninstall-TskSkinSwap-Android.ps1') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'catalog_downloader.py') $stagingRoot
 Copy-Item (Join-Path $androidRoot 'installer.py') (Join-Path $stagingRoot 'android')
+Copy-Item (Join-Path $androidRoot 'apk_patcher.py') (Join-Path $stagingRoot 'android')
+Copy-Item (Join-Path $androidRoot 'apk_source.py') (Join-Path $stagingRoot 'android')
 Copy-Item (Join-Path $androidRoot 'dist\tskskinswap.js') (Join-Path $stagingRoot 'android\runtime')
 Set-Content -LiteralPath (Join-Path $stagingRoot 'VERSION') -Value $Version -Encoding ASCII
 

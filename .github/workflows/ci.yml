@@ -6,15 +6,25 @@ on:
   pull_request:
 
 jobs:
-  pc-tools:
+  tools:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Run downloader tests
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: android/package-lock.json
+      - name: Run Python tests
         run: python -m unittest discover -s tests -v
+      - name: Build Android runtime
+        working-directory: android
+        run: |
+          npm ci
+          npm run build
       - name: Parse PowerShell scripts
         shell: pwsh
         run: |

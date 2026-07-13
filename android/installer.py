@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--quality", choices=("HighQuality", "LowQuality"), default="HighQuality")
     parser.add_argument("--edition", choices=("adult", "general"), default="adult")
     parser.add_argument("--character-id", action="append", default=[])
+    parser.add_argument("--embedded-runtime", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-restart", action="store_true")
     return parser.parse_args()
@@ -161,18 +162,18 @@ def main() -> int:
 
     files_root = f"/sdcard/Android/data/{args.package}/files"
     catalog_remote = f"{files_root}/com.unity.addressables/{CATALOG_NAME}"
-    script_remote = f"{files_root}/frida-scripts/tskskinswap.js"
     mod_root = f"{files_root}/tskskinswap"
     mod_bundle_root = f"{mod_root}/bundles"
     cache_root = f"{files_root}/UnityCache/Shared"
-    script_root = f"{files_root}/frida-scripts"
-    gadget_ready = adb.shell(
-        f"if [ -d {quote_shell(script_root)} ]; then echo READY; fi"
-    )
-    if gadget_ready != "READY":
-        raise RuntimeError(
-            "The installed app is not a compatible Android package (APK); install the compatible Android package (APK) first."
+    if not args.embedded_runtime:
+        script_root = f"{files_root}/frida-scripts"
+        gadget_ready = adb.shell(
+            f"if [ -d {quote_shell(script_root)} ]; then echo READY; fi"
         )
+        if gadget_ready != "READY":
+            raise RuntimeError(
+                "The installed app is not a compatible Android package (APK); install the compatible Android package (APK) first."
+            )
 
     output_root = args.output_dir.resolve()
     install_lock = acquire_install_lock(output_root)
@@ -283,9 +284,10 @@ def main() -> int:
         encoding="utf-8",
         newline="\n",
     )
-    runtime_script = resolve_script(args.script)
     adb.push(mapping_path, f"{mod_root}/mappings.json")
-    adb.push(runtime_script, script_remote)
+    if not args.embedded_runtime:
+        runtime_script = resolve_script(args.script)
+        adb.push(runtime_script, f"{files_root}/frida-scripts/tskskinswap.js")
     if not args.no_restart:
         adb.shell(f"am force-stop {args.package}")
         adb.shell(f"monkey -p {args.package} -c android.intent.category.LAUNCHER 1 >/dev/null")
