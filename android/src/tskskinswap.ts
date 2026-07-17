@@ -20,7 +20,6 @@ interface MappingDocument {
 
 interface PendingAsset {
   mapping: CharacterMapping;
-  request: Il2Cpp.Object;
   generation: number;
 }
 
@@ -41,7 +40,6 @@ const fallbackRoot =
   "/sdcard/Android/data/jp.co.fanzagames.twinklestarknightsx_a_mod/files/tskskinswap";
 
 const mappings = new Map<string, CharacterMapping>();
-const loadedBundles = new Map<string, Il2Cpp.Object>();
 const transformAssets = new Map<string, Il2Cpp.Object>();
 const transformDataByCharacter = new Map<string, Il2Cpp.Object>();
 const transformStateByCharacter = new Map<string, Il2Cpp.Object>();
@@ -57,6 +55,8 @@ const excludedCharacterIds = new Set(["1141001"]);
 let root = fallbackRoot;
 let activeManagerHandle = "";
 let assetGeneration = 0;
+let skeletonAddressables: Il2Cpp.Class | null = null;
+let cancellationTokenNone: Il2Cpp.ValueType | null = null;
 
 function appendLog(message: string): void {
   const line = `${new Date().toISOString()} ${message}\n`;
@@ -124,24 +124,18 @@ function stringValue(value: unknown): string {
   return String(value ?? "");
 }
 
-function loadBundle(path: string): Il2Cpp.Object {
-  const existing = loadedBundles.get(path);
-  if (existing !== undefined && !existing.isNull()) {
-    return existing;
+function getSkeletonAddressables(): Il2Cpp.Class {
+  if (skeletonAddressables === null) {
+    throw new Error("Skeleton Addressables wrapper is not initialized");
   }
+  return skeletonAddressables;
+}
 
-  const assetBundleClass = Il2Cpp.domain
-    .assembly("UnityEngine.AssetBundleModule")
-    .image.class("UnityEngine.AssetBundle");
-  const bundle = assetBundleClass
-    .method("LoadFromFile", 1)
-    .invoke(Il2Cpp.string(path)) as Il2Cpp.Object;
-  if (bundle.isNull()) {
-    throw new Error(`Unable to load bundle: ${path}`);
+function getCancellationTokenNone(): Il2Cpp.ValueType {
+  if (cancellationTokenNone === null) {
+    throw new Error("Cancellation token is not initialized");
   }
-  loadedBundles.set(path, bundle);
-  retainedObjects.push(bundle);
-  return bundle;
+  return cancellationTokenNone;
 }
 
 function animationName(animation: Il2Cpp.Object): string {
@@ -184,24 +178,22 @@ function ensureAnimationAliases(skeletonData: Il2Cpp.Object, characterId: string
   }
 }
 
-function releaseBundle(path: string, unloadAll: boolean): void {
-  const bundle = loadedBundles.get(path);
-  if (bundle === undefined || bundle.isNull()) {
-    return;
-  }
+function releaseAddressable(path: string): void {
   try {
-    bundle.method("Unload", 1).invoke(unloadAll);
+    getSkeletonAddressables()
+      .method("ReleaseCache", 1)
+      .overload("System.String")
+      .invoke(Il2Cpp.string(path));
   } catch (error) {
-    appendLog(`Failed to unload bundle ${path}: ${String(error)}`);
+    appendLog(`Failed to release Addressable ${path}: ${String(error)}`);
   }
-  loadedBundles.delete(path);
 }
 
 function abandonPending(mapping: CharacterMapping, generation: number): void {
   const pending = pendingAssets.get(mapping.characterId);
   if (pending !== undefined && pending.generation === generation) {
     pendingAssets.delete(mapping.characterId);
-    releaseBundle(mapping.transformBundle, true);
+    releaseAddressable(mapping.transformSkeletonAsset);
   }
 }
 
@@ -274,24 +266,12 @@ function releasePreparedTransforms(reason: string): void {
   }
   activeOverrides.clear();
 
-  if (pendingAssets.size > 0) {
-    appendLog(`Deferred transform cleanup during ${reason}; ${pendingAssets.size} load(s) still pending.`);
-    return;
-  }
-
-  const resources = Il2Cpp.domain
-    .assembly("UnityEngine.CoreModule")
-    .image.class("UnityEngine.Resources");
   let released = 0;
-  for (const asset of transformAssets.values()) {
-    if (asset.isNull()) {
-      continue;
-    }
-    try {
-      resources.method("UnloadAsset", 1).invoke(asset);
+  for (const characterId of transformAssets.keys()) {
+    const mapping = mappings.get(characterId);
+    if (mapping !== undefined) {
+      releaseAddressable(mapping.transformSkeletonAsset);
       released += 1;
-    } catch (error) {
-      appendLog(`Failed to release transform asset during ${reason}: ${String(error)}`);
     }
   }
   transformAssets.clear();
@@ -326,25 +306,29 @@ function beginTransformLoad(mapping: CharacterMapping): void {
     return;
   }
 
-  const bundle = loadBundle(mapping.transformBundle);
-  const objectType = Il2Cpp.domain
-    .assembly("UnityEngine.CoreModule")
-    .image.class("UnityEngine.Object").type.object;
-  let request: Il2Cpp.Object;
-  try {
-    request = bundle
-      .method("LoadAssetAsync", 2)
-      .invoke(Il2Cpp.string(mapping.transformSkeletonAsset), objectType) as Il2Cpp.Object;
-    if (request.isNull()) {
-      throw new Error(`Unable to start transform asset load for ${mapping.characterId}`);
+  getSkeletonAddressables()
+    .method("Load", 2)
+    .invoke(Il2Cpp.string(mapping.transformSkeletonAsset), getCancellationTokenNone());
+  pendingAssets.set(mapping.characterId, { mapping, generation: assetGeneration });
+  appendLog(`Requested transform Addressable for character ${mapping.characterId}.`);
+}
+
+function findAddressableAsset(path: string): Il2Cpp.Object | null {
+  const cache = getSkeletonAddressables().method("GetCache", 0).invoke() as Il2Cpp.Object;
+  const count = cache.method("get_Count").invoke() as number;
+  for (let index = 0; index < count; index += 1) {
+    const entry = cache.method("get_Item", 1).invoke(index) as Il2Cpp.Object;
+    if (entry.isNull()) {
+      continue;
     }
-  } catch (error) {
-    releaseBundle(mapping.transformBundle, true);
-    throw error;
+    const entryPath = stringValue(entry.method("get_Path").invoke());
+    if (entryPath !== path) {
+      continue;
+    }
+    const asset = entry.method("get_Value").invoke() as Il2Cpp.Object;
+    return asset.isNull() ? null : asset;
   }
-  pendingAssets.set(mapping.characterId, { mapping, request, generation: assetGeneration });
-  retainedObjects.push(request);
-  appendLog(`Started transform asset load for character ${mapping.characterId}.`);
+  return null;
 }
 
 function finalizeTransformLoad(mapping: CharacterMapping, generation: number): boolean {
@@ -360,13 +344,9 @@ function finalizeTransformLoad(mapping: CharacterMapping, generation: number): b
   if (pending === undefined || pending.generation !== generation) {
     return false;
   }
-  const isDone = Boolean(pending.request.method("get_isDone").invoke());
-  if (!isDone) {
+  const transformAsset = findAddressableAsset(mapping.transformSkeletonAsset);
+  if (transformAsset === null) {
     return false;
-  }
-  const transformAsset = pending.request.method("get_asset").invoke() as Il2Cpp.Object;
-  if (transformAsset.isNull()) {
-    throw new Error(`Transform SkeletonDataAsset not found: ${mapping.transformSkeletonAsset}`);
   }
 
   const transformData = transformAsset.method("GetSkeletonData", 1).invoke(false) as Il2Cpp.Object;
@@ -384,9 +364,7 @@ function finalizeTransformLoad(mapping: CharacterMapping, generation: number): b
   transformStateByCharacter.set(mapping.characterId, transformStateData);
   retainedObjects.push(transformAsset, transformData, transformStateData);
   pendingAssets.delete(mapping.characterId);
-  releaseBundle(mapping.transformBundle, false);
-  appendLog(`Released transform bundle container for character ${mapping.characterId}.`);
-  appendLog(`Transform asset ready for character ${mapping.characterId}.`);
+  appendLog(`Transform Addressable ready for character ${mapping.characterId}.`);
   return true;
 }
 
@@ -451,6 +429,14 @@ Il2Cpp.perform(() => {
     const spineUnity = Il2Cpp.domain.assembly("spine-unity").image;
     const skeletonDataAsset = spineUnity.class("Spine.Unity.SkeletonDataAsset");
     const skeletonGraphic = spineUnity.class("Spine.Unity.SkeletonGraphic");
+    skeletonAddressables = Il2Cpp.domain
+      .assembly("Assembly-CSharp")
+      .image.class("AddressableWrapper`1")
+      .inflate(skeletonDataAsset);
+    cancellationTokenNone = Il2Cpp.corlib
+      .class("System.Threading.CancellationToken")
+      .alloc()
+      .unbox();
     const pictureBookView = Il2Cpp.domain
       .assembly("Assembly-CSharp")
       .image.class("PictureBookUnitProfileRootView");
