@@ -12,8 +12,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Apply-TskSkinSwap-
 set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
+if "%EXIT_CODE%"=="10" goto game_data_update
 if not "%EXIT_CODE%"=="0" goto failed
 echo Installation completed. The game has been restarted.
+goto finished
+
+:game_data_update
+set "EXIT_CODE=0"
+echo Compatible app update completed. The game has been started on the phone.
+echo Finish the additional in-game data update, then close the game and run this BAT again.
 goto finished
 
 :failed
@@ -33,6 +40,7 @@ pause
 exit /b %EXIT_CODE%
 
 :stop_bundled_adb
+if exist "%TEMP%\TskSkinSwap\android-platform-tools\platform-tools\adb.exe" "%TEMP%\TskSkinSwap\android-platform-tools\platform-tools\adb.exe" kill-server >nul 2>&1
 if exist "%~dp0.tools\android-installer\platform-tools\adb.exe" "%~dp0.tools\android-installer\platform-tools\adb.exe" kill-server >nul 2>&1
 if exist "%~dp0.tools\android\platform-tools\adb.exe" "%~dp0.tools\android\platform-tools\adb.exe" kill-server >nul 2>&1
 exit /b 0

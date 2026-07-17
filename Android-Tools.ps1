@@ -43,22 +43,48 @@ function Get-TskAndroidAdb {
     param([Parameter(Mandatory = $true)][string]$ToolRoot)
 
     $toolsRoot = Join-Path $ToolRoot '.tools\android-installer'
-    $platformToolsRoot = Join-Path $toolsRoot 'platform-tools'
-    $downloadedAdb = Join-Path $platformToolsRoot 'adb.exe'
-    $developmentAdb = Join-Path $ToolRoot '.tools\android\platform-tools\adb.exe'
-    if (Test-Path $downloadedAdb) {
-        $sourceProperties = Join-Path $platformToolsRoot 'source.properties'
-        if ((Test-Path $sourceProperties) -and
-            ((Get-Content -Raw -LiteralPath $sourceProperties) -match
-                "Pkg.Revision\s*=\s*$([regex]::Escape($script:TskPlatformToolsVersion))")) {
-            return $downloadedAdb
+    $legacyAdbCandidates = @(
+        (Join-Path $toolsRoot 'platform-tools\adb.exe'),
+        (Join-Path $ToolRoot '.tools\android\platform-tools\adb.exe')
+    )
+    foreach ($legacyAdb in $legacyAdbCandidates) {
+        if (Test-Path $legacyAdb) {
+            $previousPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'SilentlyContinue'
+                & $legacyAdb kill-server 2>$null | Out-Null
+            } finally {
+                $ErrorActionPreference = $previousPreference
+            }
         }
-        Remove-Item -LiteralPath $platformToolsRoot -Recurse -Force
     }
-    if (Test-Path $developmentAdb) { return $developmentAdb }
 
     $systemAdb = Get-Command adb.exe -ErrorAction SilentlyContinue
     if ($systemAdb) { return $systemAdb.Source }
+
+    $runtimeRoot = Join-Path ([IO.Path]::GetTempPath()) 'TskSkinSwap\android-platform-tools'
+    $platformToolsRoot = Join-Path $runtimeRoot 'platform-tools'
+    $runtimeAdb = Join-Path $platformToolsRoot 'adb.exe'
+    $sourceProperties = Join-Path $platformToolsRoot 'source.properties'
+    if ((Test-Path $runtimeAdb) -and
+        (Test-Path $sourceProperties) -and
+        ((Get-Content -Raw -LiteralPath $sourceProperties) -match
+            "Pkg.Revision\s*=\s*$([regex]::Escape($script:TskPlatformToolsVersion))")) {
+        return $runtimeAdb
+    }
+    if (Test-Path $runtimeAdb) {
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'SilentlyContinue'
+            & $runtimeAdb kill-server 2>$null | Out-Null
+        } finally {
+            $ErrorActionPreference = $previousPreference
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    if (Test-Path $runtimeRoot) {
+        Remove-Item -LiteralPath $runtimeRoot -Recurse -Force
+    }
 
     $platformToolsZip = Join-Path $toolsRoot "platform-tools-$script:TskPlatformToolsVersion-windows.zip"
     Get-TskVerifiedRemoteFile `
@@ -69,18 +95,15 @@ function Get-TskAndroidAdb {
         ) `
         -Destination $platformToolsZip `
         -ExpectedHash $script:TskPlatformToolsHash
-    if (Test-Path $platformToolsRoot) {
-        Remove-Item -LiteralPath $platformToolsRoot -Recurse -Force
-    }
-    Expand-Archive -LiteralPath $platformToolsZip -DestinationPath $toolsRoot -Force
-    $sourceProperties = Join-Path $platformToolsRoot 'source.properties'
-    if (-not (Test-Path $downloadedAdb) -or
+    New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
+    Expand-Archive -LiteralPath $platformToolsZip -DestinationPath $runtimeRoot -Force
+    if (-not (Test-Path $runtimeAdb) -or
         -not (Test-Path $sourceProperties) -or
         -not ((Get-Content -Raw -LiteralPath $sourceProperties) -match
             "Pkg.Revision\s*=\s*$([regex]::Escape($script:TskPlatformToolsVersion))")) {
         throw 'Android Platform Tools extraction failed version validation.'
     }
-    return $downloadedAdb
+    return $runtimeAdb
 }
 
 function Get-TskAndroidPython {
@@ -128,7 +151,9 @@ function Start-TskAdbServer {
 function Get-TskCompatibleSourceApk {
     param(
         [Parameter(Mandatory = $true)][string]$ToolRoot,
-        [Parameter(Mandatory = $true)][string]$PythonExe
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [string]$MinimumVersionName,
+        [string]$RequiredVersionName
     )
 
     $apkCache = Join-Path $ToolRoot '.tools\android-installer\apk'
@@ -137,9 +162,19 @@ function Get-TskCompatibleSourceApk {
     if (-not (Test-Path $apkSource) -or -not (Test-Path $manifestPath)) {
         throw 'Android APK downloader files are missing. Extract the entire release ZIP and retry.'
     }
+    if ($MinimumVersionName -and $RequiredVersionName) {
+        throw 'MinimumVersionName and RequiredVersionName cannot be combined.'
+    }
 
     New-Item -ItemType Directory -Force -Path $apkCache | Out-Null
-    & $PythonExe $apkSource --output-dir $apkCache | Out-Null
+    $arguments = @($apkSource, '--output-dir', $apkCache)
+    if ($MinimumVersionName) {
+        $arguments += @('--minimum-version-name', $MinimumVersionName)
+    }
+    if ($RequiredVersionName) {
+        $arguments += @('--required-version-name', $RequiredVersionName)
+    }
+    & $PythonExe @arguments | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Compatible APK download failed.' }
 
     $metadataPath = Join-Path $apkCache 'source-apk.json'
@@ -147,10 +182,11 @@ function Get-TskCompatibleSourceApk {
         throw 'Compatible APK downloader did not create metadata.'
     }
     $metadata = Get-Content -Raw -Encoding UTF8 -LiteralPath $metadataPath | ConvertFrom-Json
-    if ($metadata.schemaVersion -ne 1 -or
+    if ($metadata.schemaVersion -ne 2 -or
+        $metadata.sourceRepository -ne 'anosu/DMM-Mod' -or
         $metadata.assetName -notmatch '^Kurusuta-X\.Mod_[0-9.]+_patched\.apk$' -or
         $metadata.sha256 -notmatch '^[0-9a-fA-F]{64}$' -or
-        [string]$metadata.versionCode -notmatch '^\d+$') {
+        [string]$metadata.versionName -notmatch '^\d+(?:\.\d+)*$') {
         throw 'Compatible APK downloader returned invalid metadata.'
     }
 
@@ -163,19 +199,15 @@ function Get-TskCompatibleSourceApk {
         throw 'The compatible APK failed SHA-256 validation.'
     }
 
-    $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
-    $matches = @($manifest.apks | Where-Object {
-        $_.sha256 -eq $sourceHash -and
-        [string]$_.versionCode -eq [string]$metadata.versionCode -and
-        $_.assetName -eq $metadata.assetName
-    })
-    if ($manifest.schemaVersion -ne 1 -or $matches.Count -ne 1) {
-        throw 'The downloaded compatible APK is not in the supported allowlist.'
+    $policy = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
+    if ($policy.schemaVersion -ne 2 -or
+        $policy.sourceRepository -ne $metadata.sourceRepository) {
+        throw 'The compatible APK source policy is invalid.'
     }
 
     return [pscustomobject]@{
         Path = $sourceApk
         Metadata = $metadata
-        SupportedApk = $matches[0]
+        SourcePolicy = $policy
     }
 }
