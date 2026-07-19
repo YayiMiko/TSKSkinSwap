@@ -149,7 +149,12 @@ function Start-TskAdbServer {
 }
 
 function ConvertFrom-TskAdbDevicesOutput {
-    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Output)
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [AllowEmptyString()]
+        [string[]]$Output
+    )
 
     foreach ($line in $Output) {
         if ($line -match '^(?<Serial>\S+)\s+(?<State>device|unauthorized|offline|recovery|sideload|bootloader|host)(?:\s|$)') {

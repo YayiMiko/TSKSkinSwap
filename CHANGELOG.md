@@ -4,6 +4,7 @@
 
 - Android 安装和卸载现在会等待手机完成 USB 调试授权，并明确提示需要在手机上点击“允许”。
 - 修复手机处于 `unauthorized` 状态时，PowerShell 将 ADB 提示误报为脚本异常并立即退出的问题。
+- 兼容 `adb devices` 输出中的空行，避免设备检查被 PowerShell 参数验证提前中断。
 - Android 构建过程会自动改用可写的纯英文临时目录，修复 Windows 用户名含中文时 `Illegal byte sequence` 导致安装失败的问题。
 
 ## Android Release 0.3.0 - 2026-07-17

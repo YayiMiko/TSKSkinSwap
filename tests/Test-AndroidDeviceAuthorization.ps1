@@ -9,7 +9,8 @@ try {
         'List of devices attached',
         'SERIAL-A unauthorized',
         'SERIAL-B device',
-        '* daemon started successfully'
+        '* daemon started successfully',
+        ''
     ))
     if ($parsed.Count -ne 2 -or
         $parsed[0].Serial -ne 'SERIAL-A' -or
@@ -26,6 +27,7 @@ try {
         'echo * daemon not running; starting now at tcp:5037 1>&2',
         'echo List of devices attached',
         'echo TEST-PHONE unauthorized',
+        'echo.',
         'exit /b 0'
     ) | Set-Content -LiteralPath $fakeAdb -Encoding ASCII
 
