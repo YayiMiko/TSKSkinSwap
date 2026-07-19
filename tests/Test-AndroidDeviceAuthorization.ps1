@@ -5,6 +5,18 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) "TskSkinSwap-adb-$([Guid]::NewG
 try {
     . (Join-Path $repositoryRoot 'Android-Tools.ps1')
 
+    $waitingMessage = @(Get-TskAndroidUserMessage `
+        -Key 'waitingMissing' `
+        -Fallback @('fallback')) -join "`n"
+    $actionPhrase = -join (@(0x73B0, 0x5728, 0x8BF7, 0x64CD, 0x4F5C, 0x624B, 0x673A) |
+        ForEach-Object { [char]$_ })
+    $continuePhrase = -join (@(0x81EA, 0x52A8, 0x7EE7, 0x7EED) |
+        ForEach-Object { [char]$_ })
+    if ($waitingMessage -notmatch [regex]::Escape($actionPhrase) -or
+        $waitingMessage -notmatch [regex]::Escape($continuePhrase)) {
+        throw 'The Chinese phone-action prompt is missing or unclear.'
+    }
+
     $parsed = @(ConvertFrom-TskAdbDevicesOutput -Output @(
         'List of devices attached',
         'SERIAL-A unauthorized',
@@ -38,11 +50,14 @@ try {
         throw 'ADB stderr handling lost the unauthorized device state.'
     }
 
+    $expectedUnauthorizedError = (Get-TskAndroidUserMessage `
+        -Key 'errorUnauthorized' `
+        -Fallback @('USB debugging was not authorized.')) -join ' '
     try {
         [void](Wait-TskAuthorizedAndroidDevice -AdbExe $fakeAdb -TimeoutSeconds 0)
         throw 'An unauthorized device was accepted.'
     } catch {
-        if ($_.Exception.Message -notmatch 'USB debugging was not authorized') {
+        if ($_.Exception.Message -ne $expectedUnauthorizedError) {
             throw
         }
     }
@@ -76,6 +91,10 @@ try {
     if ($builder -match 'Join-Path \(\[IO\.Path\]::GetTempPath\(\)\)' -or
         $builder -notmatch 'New-TskAsciiTemporaryDirectory') {
         throw 'The Android APK builder does not use an ASCII-safe staging directory.'
+    }
+    $releaseBuilder = Get-Content -Raw -Encoding UTF8 (Join-Path $repositoryRoot 'Build-Android-Release.ps1')
+    if ($releaseBuilder -notmatch 'Android-Messages\.zh-CN\.json') {
+        throw 'The Android release package does not include the Chinese message file.'
     }
 
     Write-Host 'Android device authorization tests passed.'

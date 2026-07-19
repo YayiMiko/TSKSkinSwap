@@ -48,6 +48,7 @@ Copy-Item (Join-Path $toolRoot 'README.android.md') (Join-Path $stagingRoot 'REA
 Copy-Item (Join-Path $toolRoot 'CHANGELOG.md') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'THIRD_PARTY.md') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Android-Tools.ps1') $stagingRoot
+Copy-Item (Join-Path $toolRoot 'Android-Messages.zh-CN.json') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Apply-TskSkinSwap-Android.bat') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Apply-TskSkinSwap-Android.ps1') $stagingRoot
 Copy-Item (Join-Path $toolRoot 'Build-TskSkinSwap-AndroidApk.ps1') $stagingRoot

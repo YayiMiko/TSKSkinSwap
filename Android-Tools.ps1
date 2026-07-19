@@ -2,6 +2,42 @@ $script:TskPlatformToolsVersion = '37.0.1'
 $script:TskPlatformToolsHash = '84df1e5628bc7e6a9f2bf750ab98c591a99a6d622fd48f789cf278336bab5b99'
 $script:TskPythonVersion = '3.12.10'
 $script:TskPythonHash = '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3'
+$script:TskAndroidUserMessages = $null
+$messagePath = Join-Path $PSScriptRoot 'Android-Messages.zh-CN.json'
+if (Test-Path $messagePath) {
+    try {
+        $script:TskAndroidUserMessages = Get-Content -Raw -Encoding UTF8 -LiteralPath $messagePath | ConvertFrom-Json
+    } catch {
+        $script:TskAndroidUserMessages = $null
+    }
+}
+
+function Get-TskAndroidUserMessage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Fallback
+    )
+
+    if ($script:TskAndroidUserMessages) {
+        $property = $script:TskAndroidUserMessages.PSObject.Properties[$Key]
+        if ($property -and $null -ne $property.Value) {
+            return @($property.Value | ForEach-Object { [string]$_ })
+        }
+    }
+    return $Fallback
+}
+
+function Write-TskAndroidUserMessage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Fallback,
+        [ConsoleColor]$Color = [ConsoleColor]::Yellow
+    )
+
+    foreach ($line in @(Get-TskAndroidUserMessage -Key $Key -Fallback $Fallback)) {
+        Write-Host $line -ForegroundColor $Color
+    }
+}
 
 function Get-TskVerifiedRemoteFile {
     param(
@@ -202,11 +238,16 @@ function Wait-TskAuthorizedAndroidDevice {
     do {
         $devices = @(Get-TskAdbDevices -AdbExe $AdbExe)
         if ($devices.Count -gt 1) {
-            throw 'More than one Android device is connected. Disconnect the extra device and run this BAT again.'
+            throw ((Get-TskAndroidUserMessage -Key 'errorMultipleDevices' -Fallback @(
+                'More than one Android device is connected. Disconnect the extra device and run this BAT again.'
+            )) -join ' ')
         }
         if ($devices.Count -eq 1 -and $devices[0].State -eq 'device') {
             if ($lastState) {
-                Write-Host 'USB debugging authorization confirmed.'
+                Write-TskAndroidUserMessage `
+                    -Key 'authorizationConfirmed' `
+                    -Fallback @('USB debugging authorization confirmed. Installation will continue.') `
+                    -Color Green
             }
             return $devices[0].Serial
         }
@@ -215,18 +256,42 @@ function Wait-TskAuthorizedAndroidDevice {
         if ($state -ne $lastState) {
             switch ($state) {
                 'unauthorized' {
-                    Write-Host 'Phone detected, waiting for USB debugging approval...'
-                    Write-Host 'Unlock the phone. In the "Allow USB debugging?" prompt, tap Allow.'
-                    Write-Host 'You may also select "Always allow from this computer".'
+                    Write-TskAndroidUserMessage -Key 'waitingUnauthorized' -Fallback @(
+                        '',
+                        '================ ACTION REQUIRED ON YOUR PHONE ================',
+                        'The phone is connected, but USB debugging is not authorized.',
+                        'Unlock the phone and tap Allow in the "Allow USB debugging?" prompt.',
+                        'Keep this window open. Installation will continue automatically.',
+                        '================================================================'
+                    )
                 }
                 'offline' {
-                    Write-Host 'The phone is offline. Unlock it, reconnect the USB cable, and keep this window open.'
+                    Write-TskAndroidUserMessage -Key 'waitingOffline' -Fallback @(
+                        '',
+                        '================ ACTION REQUIRED ON YOUR PHONE ================',
+                        'The phone is offline. Unlock it and reconnect the USB cable.',
+                        'Keep this window open. Installation will continue automatically.',
+                        '================================================================'
+                    )
                 }
                 'no permissions' {
-                    Write-Host 'Windows cannot access the phone. Reconnect it and check the phone USB settings.'
+                    Write-TskAndroidUserMessage -Key 'waitingNoPermissions' -Fallback @(
+                        '',
+                        '================ ACTION REQUIRED ON YOUR PHONE ================',
+                        'Windows cannot access the phone. Reconnect it and select a USB data mode.',
+                        'Keep this window open. Installation will continue automatically.',
+                        '================================================================'
+                    )
                 }
                 'missing' {
-                    Write-Host 'Waiting for an Android phone. Connect it with a data-capable USB cable and unlock it.'
+                    Write-TskAndroidUserMessage -Key 'waitingMissing' -Fallback @(
+                        '',
+                        '================ ACTION REQUIRED ON YOUR PHONE ================',
+                        'Connect and unlock the phone with a data-capable USB cable.',
+                        'If asked, tap Allow in the "Allow USB debugging?" prompt.',
+                        'Keep this window open. Installation will continue automatically.',
+                        '================================================================'
+                    )
                 }
                 default {
                     Write-Host "The phone is in ADB state '$state'. Start Android normally and reconnect it."
@@ -241,16 +306,24 @@ function Wait-TskAuthorizedAndroidDevice {
 
     switch ($lastState) {
         'unauthorized' {
-            throw 'The phone is connected but USB debugging was not authorized. Unlock the phone, accept the USB debugging prompt, and run this BAT again. If no prompt appears, turn USB debugging off and on, then reconnect the cable.'
+            throw ((Get-TskAndroidUserMessage -Key 'errorUnauthorized' -Fallback @(
+                'The phone is connected but USB debugging was not authorized. Unlock the phone, accept the USB debugging prompt, and run this BAT again. If no prompt appears, turn USB debugging off and on, then reconnect the cable.'
+            )) -join ' ')
         }
         'offline' {
-            throw 'The phone stayed offline. Reconnect the USB cable, unlock the phone, and run this BAT again.'
+            throw ((Get-TskAndroidUserMessage -Key 'errorOffline' -Fallback @(
+                'The phone stayed offline. Reconnect the USB cable, unlock the phone, and run this BAT again.'
+            )) -join ' ')
         }
         'no permissions' {
-            throw 'Windows could not access the phone. Reconnect it, select a USB data mode, and run this BAT again.'
+            throw ((Get-TskAndroidUserMessage -Key 'errorNoPermissions' -Fallback @(
+                'Windows could not access the phone. Reconnect it, select a USB data mode, and run this BAT again.'
+            )) -join ' ')
         }
         default {
-            throw 'No Android phone was detected. Use a data-capable USB cable, unlock the phone, enable USB debugging, and run this BAT again.'
+            throw ((Get-TskAndroidUserMessage -Key 'errorMissing' -Fallback @(
+                'No Android phone was detected. Use a data-capable USB cable, unlock the phone, enable USB debugging, and run this BAT again.'
+            )) -join ' ')
         }
     }
 }
