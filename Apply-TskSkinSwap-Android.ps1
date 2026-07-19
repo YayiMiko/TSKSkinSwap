@@ -81,6 +81,19 @@ function Install-TskPatchedApk {
     $output | Write-Host
 }
 
+function Confirm-TskPhoneReadyForInstall {
+    Write-TskAndroidUserMessage -Key 'readyForFinalInstall' -Fallback @(
+        '',
+        '================ ACTION REQUIRED ON YOUR PHONE ================',
+        'The resources are ready. Unlock the phone and keep the screen on.',
+        'The phone may ask for permission to install through USB. Allow it.',
+        'When the phone is ready, return to this window and press Enter.',
+        '================================================================'
+    )
+    [void](Read-Host)
+    [void](Wait-TskAuthorizedAndroidDevice -AdbExe $adbExe)
+}
+
 function Start-TskAndroidGame {
     & $adbExe shell "monkey -p $package -c android.intent.category.LAUNCHER 1 >/dev/null" | Out-Null
     Start-Sleep -Seconds 2
@@ -114,12 +127,18 @@ if (-not $DryRun) {
     & $adbExe shell am force-stop $package | Out-Null
 
     if ([version]$targetPackageVersion -gt [version]$installedPackageVersion) {
+        Confirm-TskPhoneReadyForInstall
         Install-TskPatchedApk
         Start-TskAndroidGame
-        Write-Host ''
-        Write-Host 'The compatible Android app was updated to the latest version.'
-        Write-Host 'On the phone, finish the in-game update.'
-        Write-Host 'Then close the game and run Apply-TskSkinSwap-Android.bat again to finish the MOD.'
+        Write-TskAndroidUserMessage `
+            -Key 'compatibleAppUpdated' `
+            -Fallback @(
+                '',
+                'The compatible Android app was updated and the game was started.',
+                'Finish the in-game update, close the game, and run this BAT again.',
+                'The MOD installation is not complete yet.'
+            ) `
+            -Color Yellow
         exit 10
     }
 }
@@ -146,8 +165,22 @@ if ($installerExitCode -ne 0 -or $DryRun) {
     exit $installerExitCode
 }
 
+Confirm-TskPhoneReadyForInstall
 Install-TskPatchedApk
 if (-not $NoRestart) {
     Start-TskAndroidGame
+    Write-TskAndroidUserMessage `
+        -Key 'installationCompleted' `
+        -Fallback @(
+            '',
+            '================ INSTALLATION COMPLETED ================',
+            'The Android MOD is installed and the game was started on the phone.',
+            '========================================================'
+        ) `
+        -Color Green
+} else {
+    Write-TskAndroidUserMessage `
+        -Key 'installationCompletedNoRestart' `
+        -Fallback @('Android MOD installation completed. Automatic game start was disabled.') `
+        -Color Green
 }
-Write-Host 'Android MOD installation completed without clearing application data.'

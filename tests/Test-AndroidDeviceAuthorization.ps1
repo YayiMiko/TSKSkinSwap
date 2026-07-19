@@ -16,6 +16,16 @@ try {
         $waitingMessage -notmatch [regex]::Escape($continuePhrase)) {
         throw 'The Chinese phone-action prompt is missing or unclear.'
     }
+    foreach ($messageKey in @(
+        'readyForFinalInstall',
+        'compatibleAppUpdated',
+        'installationCompleted'
+    )) {
+        $message = @(Get-TskAndroidUserMessage -Key $messageKey -Fallback @('fallback')) -join "`n"
+        if ($message -eq 'fallback' -or $message -notmatch 'Enter|BAT|MOD') {
+            throw "The Chinese Android workflow message is incomplete: $messageKey"
+        }
+    }
 
     $parsed = @(ConvertFrom-TskAdbDevicesOutput -Output @(
         'List of devices attached',
@@ -100,6 +110,16 @@ try {
             $content -notmatch 'Set-TskAndroidWorkingDirectory') {
             throw "$entryScript does not use the shared Android setup helpers."
         }
+    }
+    $applyScript = Get-Content -Raw -Encoding UTF8 (Join-Path $repositoryRoot 'Apply-TskSkinSwap-Android.ps1')
+    if ($applyScript -notmatch 'Confirm-TskPhoneReadyForInstall' -or
+        $applyScript -notmatch 'Read-Host' -or
+        $applyScript -notmatch "-Key 'installationCompleted'") {
+        throw 'The Android installer does not pause for the phone or show its localized completion message.'
+    }
+    $applyBatch = Get-Content -Raw -Encoding ASCII (Join-Path $repositoryRoot 'Apply-TskSkinSwap-Android.bat')
+    if ($applyBatch -match 'Installation completed|Compatible app update completed') {
+        throw 'The BAT still prints an English result after the localized PowerShell message.'
     }
     $builder = Get-Content -Raw -Encoding UTF8 (Join-Path $repositoryRoot 'Build-TskSkinSwap-AndroidApk.ps1')
     if ($builder -match 'Join-Path \(\[IO\.Path\]::GetTempPath\(\)\)' -or
