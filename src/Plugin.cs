@@ -15,7 +15,7 @@ public sealed class Plugin : BasePlugin
 {
     public const string PluginGuid = "com.codex.tskskinswap";
     public const string PluginName = "TSK Skin Swap";
-    public const string PluginVersion = "1.3.0";
+    public const string PluginVersion = "0.1.0";
 
     internal static ManualLogSource PluginLog { get; private set; } = null!;
 
@@ -117,6 +117,13 @@ internal static class SkinSwapRuntime
     private static readonly Dictionary<string, PreparedTransform> PreparedTransforms = new(StringComparer.Ordinal);
     private static readonly Dictionary<int, Queue<OverrideRequest>> ActiveOverrides = new();
     private static readonly object Gate = new();
+    private static readonly string[] MosaicMarkers = { "mosaic", "mozaiku", "mosic" };
+    private static readonly string[] MosaicBodyMarkers =
+    {
+        "body", "vagina", "vigina", "vegina", "genital", "gential", "kokan", "anal", "penis",
+        "crotch", "waist", "west", "wait", "hip", "foot", "leg", "pelvis", "buttocks",
+    };
+    private static readonly string[] MosaicExclusions = { "hair", "eff", "snow", "mask" };
 
     internal static int MappingCount => Mappings.Count;
 
@@ -521,6 +528,7 @@ internal static class SkinSwapRuntime
             }
 
             var aliases = EnsureCutAnimationAliases(transformData, mapping.CharacterId);
+            var removedMosaics = RemoveMosaicAttachments(transformData, mapping);
             var stateData = transformAsset.GetAnimationStateData();
             if (stateData is null)
             {
@@ -541,7 +549,8 @@ internal static class SkinSwapRuntime
             }
             RuntimeFileLog.Write(
                 $"TRANSFORM_PREPARED character={mapping.CharacterId} source={(owned ? "mod" : "game")} "
-                + $"sourceInstance={sourceAssetInstanceId} transformInstance={transformAsset.GetInstanceID()}"
+                + $"sourceInstance={sourceAssetInstanceId} transformInstance={transformAsset.GetInstanceID()} "
+                + $"mosaicsRemoved={removedMosaics}"
             );
             return prepared;
         }
@@ -576,6 +585,100 @@ internal static class SkinSwapRuntime
         }
 
         throw new InvalidOperationException($"Unable to open transform bundle: {mapping.TransformBundle}");
+    }
+
+    private static int RemoveMosaicAttachments(Spine.SkeletonData skeletonData, CharacterMapping mapping)
+    {
+        if (!mapping.TransformSkeletonAsset.Contains("_m0_SkeletonData", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var removals = new List<(Spine.Skin Skin, int SlotIndex, string SlotName, string Name, string Path)>();
+        var slots = skeletonData.Slots;
+        var skins = new List<Spine.Skin>();
+        var skinPointers = new HashSet<IntPtr>();
+
+        void AddSkin(Spine.Skin? skin)
+        {
+            if (skin is not null && skinPointers.Add(skin.Pointer))
+            {
+                skins.Add(skin);
+            }
+        }
+
+        AddSkin(skeletonData.DefaultSkin);
+        var additionalSkins = skeletonData.Skins;
+        for (var skinIndex = 0; skinIndex < additionalSkins.Count; skinIndex++)
+        {
+            AddSkin(additionalSkins.Items[skinIndex]);
+        }
+
+        var attachmentsScanned = 0;
+        var meshesScanned = 0;
+        foreach (var skin in skins)
+        {
+            for (var slotIndex = 0; slotIndex < slots.Count; slotIndex++)
+            {
+                var attachments = new Il2CppSystem.Collections.Generic.List<Spine.Skin.SkinEntry>();
+                skin.GetAttachments(slotIndex, attachments);
+                foreach (var entry in attachments)
+                {
+                    attachmentsScanned++;
+                    var mesh = entry.Attachment.TryCast<Spine.MeshAttachment>();
+                    if (mesh is null)
+                    {
+                        continue;
+                    }
+                    meshesScanned++;
+
+                    var slotName = slots.Items[slotIndex].Name;
+                    var path = mesh.Path ?? string.Empty;
+                    if (!IsMosaicAttachment(slotName, entry.Name, path))
+                    {
+                        continue;
+                    }
+
+                    removals.Add((skin, slotIndex, slotName, entry.Name, path));
+                }
+            }
+        }
+
+        RuntimeFileLog.Write(
+            $"MOSAIC_SCAN character={mapping.CharacterId} skins={skins.Count} slots={slots.Count} "
+            + $"attachments={attachmentsScanned} meshes={meshesScanned} matches={removals.Count}"
+        );
+
+        foreach (var removal in removals)
+        {
+            removal.Skin.RemoveAttachment(removal.SlotIndex, removal.Name);
+            RuntimeFileLog.Write(
+                $"MOSAIC_REMOVED character={mapping.CharacterId} skin={removal.Skin.Name} "
+                + $"slot={removal.SlotName} attachment={removal.Name} path={removal.Path}"
+            );
+        }
+        return removals.Count;
+    }
+
+    private static bool IsMosaicAttachment(string slotName, string attachmentName, string path)
+    {
+        var candidate = $"{slotName}\n{attachmentName}\n{path}".ToLowerInvariant();
+        if (MosaicExclusions.Any(candidate.Contains))
+        {
+            return false;
+        }
+        if (MosaicMarkers.Any(candidate.Contains))
+        {
+            return true;
+        }
+
+        var hasMosaicSuffix = attachmentName.StartsWith("m_", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("m_", StringComparison.OrdinalIgnoreCase)
+            || attachmentName.EndsWith("_m", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith("_m", StringComparison.OrdinalIgnoreCase)
+            || attachmentName.EndsWith("_ｍ", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith("_ｍ", StringComparison.OrdinalIgnoreCase);
+        return hasMosaicSuffix && MosaicBodyMarkers.Any(candidate.Contains);
     }
 
     private static AssetBundle? FindLoadedBundle(string assetPath)
